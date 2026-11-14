@@ -2,11 +2,11 @@
 
 Live view of the ESP32 detector over USB (Web Serial), plus a built-in simulator.
 
-Serve this folder over localhost (Web Serial needs a secure context; `localhost` counts):
+Serve **this folder** (run the command from inside `dashboard/`, otherwise you get a directory listing). Web Serial needs a secure context; 127.0.0.1 counts:
 
-    python -m http.server 8080
+    python -m http.server 8080 --bind 127.0.0.1
 
-Then open <http://localhost:8080/> in Chrome or Edge, click **Connect USB** and pick the CH340 port
+Then open <http://127.0.0.1:8080/> in Chrome or Edge, click **Connect USB** and pick the CH340 port
 (921600 baud). Only one program can hold the port, so close any serial monitor first.
 **Simulator** runs a fake two-sensor device through the same decoder, with no hardware.
 
