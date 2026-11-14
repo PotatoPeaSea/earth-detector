@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earth Detector</title>
+<style>
+:root{
+  --ink:#111; --mid:#555; --grey:#8a8a8a; --line:#d9d9d9;
+  --green:#2ca02c; --amber:#d99a00; --red:#d62728;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#fff;color:var(--ink);
+  font-family:"DejaVu Sans",Verdana,"Bitstream Vera Sans",sans-serif;font-size:13px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:disabled{cursor:default;opacity:.45}
+#rule{position:fixed;top:0;left:0;right:0;height:3px;background:var(--red);display:none;z-index:5}
+body.alarm #rule{display:block}
+
+.page{display:flex;height:100vh;min-height:620px}
+aside{width:288px;flex:none;padding:30px 22px 20px 32px;display:flex;flex-direction:column;overflow-y:auto}
+aside>*{flex-shrink:0}
+main{flex:1;min-width:0;display:flex;flex-direction:column;padding:22px 36px 18px 8px}
+
+.k{color:var(--grey);font-size:11px;letter-spacing:.02em}
+.st{font-size:44px;line-height:1.05;margin:4px 0 6px;font-weight:400}
+.st.idle{color:var(--green)} .st.shaking{color:var(--amber)} .st.alarm{color:var(--red)} .st.off{color:var(--grey)}
+.msg{font-size:12px;line-height:1.4;color:var(--mid);min-height:34px}
+body.alarm .msg{color:var(--red)}
+
+.freq{margin-top:16px}
+.big{font-size:30px;line-height:1.15}
+.unit{font-size:13px;color:var(--mid)}
+.small{font-size:10.5px;color:var(--grey);min-height:14px}
+.stale{color:var(--grey)!important}
+
+.rows{margin-top:14px}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0}
+.row span{color:var(--grey);font-size:11px}
+.row b{font-weight:400;font-size:14px}
+
+.sec{margin:20px 0 6px}
+.ser label{display:flex;align-items:center;gap:8px;padding:2.5px 0;cursor:pointer;font-size:12px;user-select:none}
+.ser input{margin:0;accent-color:#444}
+.sw{display:inline-block;width:16px;height:0;border-top:2px solid}
+.sw.dash{border-top-style:dashed}
+body.spec .ser label.nospec{opacity:.35}
+
+.lnk{color:var(--mid);text-decoration:underline;text-underline-offset:3px;text-decoration-color:#bbb}
+.lnk:hover:not(:disabled){color:var(--ink)}
+.lnk.on{color:var(--ink);text-decoration-color:var(--ink)}
+.line{margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;font-size:12px}
+.line .k{margin-right:2px}
+.sim{font-size:11px;color:var(--grey);gap:10px}
+#srcmsg{margin-top:6px}
+#settings{margin-top:8px;font-size:11px}
+#settings table{border-collapse:collapse;width:100%}
+#settings td{padding:1px 0}
+#settings td:first-child{color:var(--mid);padding-right:8px}
+#settings input{width:74px;font:inherit;font-size:11px;border:0;border-bottom:1px solid var(--line);padding:1px 2px;text-align:right;background:none;color:var(--ink)}
+#settings input:focus{outline:0;border-bottom-color:var(--ink)}
+.foot{margin-top:auto;padding-top:22px;font-size:10px;line-height:1.5;color:var(--grey)}
+
+.tabs{font-size:12px;color:var(--grey);margin:0 0 6px 64px;display:flex;gap:8px;align-items:baseline}
+.tabs button{color:var(--grey)}
+.tabs button.on{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.plot{flex:1;min-height:260px;position:relative}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.cap{margin:6px 0 0 64px;font-size:12px;color:var(--mid);line-height:1.45;min-height:18px}
+#evbox{margin:10px 0 0 64px;max-height:170px;overflow:auto;border-top:1px solid var(--line)}
+#evbox table{border-collapse:collapse;width:100%;font-size:11.5px}
+#evbox th{font-weight:400;color:var(--grey);text-align:left;padding:5px 12px 5px 0;font-size:10.5px}
+#evbox td{padding:3px 12px 3px 0;white-space:nowrap}
+#evbox .q{color:var(--red)}
+#evbox .empty{color:var(--grey);padding:8px 0}
+[hidden]{display:none!important}
+
+@media (max-width:1400px){
+  aside{width:262px;padding-left:24px}
+  .st{font-size:38px}
+  main{padding-right:24px}
+}
+</style>
+</head>
+<body>
+<div id="rule"></div>
+<div class="page">
+  <aside>
+    <div class="k">Status</div>
+    <div id="status" class="st off">OFFLINE</div>
+    <div id="stmsg" class="msg"></div>
+
+    <div class="freq">
+      <div class="k">Frequency</div>
+      <div id="freq" class="big">&mdash;</div>
+      <div id="fmeth" class="small"></div>
+    </div>
+
+    <div class="rows">
+      <div class="row"><span>Peak g</span><b id="vPeak">&mdash;</b></div>
+      <div class="row"><span>RMS g</span><b id="vRms">&mdash;</b></div>
+      <div class="row"><span>Base RMS g</span><b id="vBase">&mdash;</b></div>
+      <div class="row"><span>Magnitude</span><b id="vMag">&mdash;</b></div>
+      <div class="row"><span>Amplification S1/S2</span><b id="vAmp">&mdash;</b></div>
+    </div>
+
+    <div class="k sec">Series</div>
+    <div class="ser" id="ser"></div>
+
+    <div class="k sec">Source</div>
+    <div class="line" style="margin-top:0"><button id="bUsb" class="lnk">Connect USB</button><button id="bSim" class="lnk">Simulator</button></div>
+    <div id="srcmsg" class="small"></div>
+    <div class="line sim" id="simrow" hidden><span>Simulate</span>
+      <button id="bBump" class="lnk">Bump</button>
+      <button id="bQuake" class="lnk">Earthquake</button>
+      <button id="bAuto" class="lnk on">Auto: on</button>
+    </div>
+
+    <div class="line" id="ctl">
+      <button id="bRezero" class="lnk">Re-zero</button>
+      <button id="bTest" class="lnk">Test alarm</button>
+      <button id="bSil" class="lnk">Silence</button>
+      <button id="bRec" class="lnk">Record</button>
+    </div>
+    <div class="line"><button id="evBtn" class="lnk">Events (0)</button><button id="setBtn" class="lnk">Settings</button></div>
+    <div id="settings" hidden></div>
+
+    <div id="foot" class="foot"></div>
+  </aside>
+
+  <main>
+    <div class="tabs"><button id="tTime" class="on">Time</button><span>|</span><button id="tSpec">Spectrum</button></div>
+    <div class="plot"><canvas id="cv"></canvas></div>
+    <div id="verdict" class="cap">No events yet.</div>
+    <div id="evbox" hidden></div>
+  </main>
+</div>
+
+<script src="protocol.js"></script>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const PI2=Math.PI*2;
+const Proto=window.EDProto;
+const SCALE=Proto.OUT_SCALE;
+const RB=8192, RM=RB-1;          // sample ring per sensor (about 40 s)
+const EB=1024, EM=EB-1;          // status ring (10 Hz, about 100 s)
+const TW=10;                      // seconds shown
+const LV=['Quiet','Micro','Weak','Moderate','Strong','Severe'];
+const T10=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f'];
+// firmware defaults (params.cpp), used until the device reports PARAMS
+const DEFAULTS=[0.04,0.025,0.8,1,15,3,0.5,0.6,0.2,3,1.5,1,0.05,0.10,0.20,0.35,0.50,0];
+const PARAM_HELP={on_thr:'g RMS that starts a candidate',off_thr:'g RMS that ends it',confirm_s:'seconds above threshold before an alarm',
+  fmin:'Hz, lower edge of shake band',fmax:'Hz, upper edge of shake band',crest_max:'peak/RMS limit',periodic_min:'autocorrelation at one period',
+  decay_min:'newest/previous RMS ratio',base_ratio_min:'base RMS / top RMS',latch_s:'minimum alarm time (s)',quiet_s:'quiet time before re-arming (s)',
+  buzzer_en:'1 = buzzer on',lvl1:'g RMS for level 1',lvl2:'level 2',lvl3:'level 3',lvl4:'level 4',lvl5:'level 5',buzzer_mode:'0 passive, 1 active'};
+
+/* ================================================================ state */
+const D={mode:null,           // null | 'usb' | 'sim'
+  params:null, hello:null, status:null, health:null,
+  lastFrameMs:0, parser:null, tLatest:0};
+const stores=[mkStore(),mkStore()];
+const env={T:new Float64Array(EB),rms:new Float32Array(EB),st:new Uint8Array(EB),w:0};
+let cur=null, lastEv=null, log=[], cntAll=0, logDirty=true, verdict='No events yet.', verdictDirty=true;
+
+function mkStore(){
+  return {T:new Float64Array(RB),
+    raw:[new Float32Array(RB),new Float32Array(RB),new Float32Array(RB)],
+    flt:[new Float32Array(RB),new Float32Array(RB),new Float32Array(RB)],
+    w:0, fs:200, tAcc:0, lastTus:null, nextIdx:null, axis:0, ea:[1e-6,1e-6,1e-6],
+    spec:{amp:new Float32Array(1100),nb:0,df:1,ok:false}};
+}
+function resetData(){
+  for(const s of stores){s.w=0;s.lastTus=null;s.nextIdx=null;s.ea=[1e-6,1e-6,1e-6];s.spec.ok=false;}
+  env.w=0; D.status=null; D.health=null; D.tLatest=0; cur=null; lastEv=null;
+  log=[]; cntAll=0; logDirty=true; verdict='No events yet.'; verdictDirty=true; fx.lock=false;
+}
+function tNow(){return D.tLatest;}
+function param(name){const i=Proto.P[name]; return D.params&&D.params[i]!==undefined?D.params[i]:DEFAULTS[i];}
+
+/* ================================================================ frame handling (same path for USB and simulator) */
+function handle(f){
+  D.lastFrameMs=performance.now();
+  switch(f.type){
+    case 'data': onData(f); break;
+    case 'status': onStatus(f); break;
+    case 'event': onEvent(f); break;
+    case 'health': D.health=f; break;
+    case 'params': D.params=f.values.slice(); settingsDirty=true; break;
+    case 'hello':
+      D.hello=f;
+      if(!D.params&&D.mode==='usb') send(Proto.Cmd.getParams());   // first request may have hit a booting board
+      break;
+    default: break;
+  }
+}
+
+function onData(f){
+  const S=stores[f.sensor]; if(!S) return;
+  const fs=f.fs>10?f.fs:200;
+  if(S.lastTus===null){S.tAcc=f.tUs/1e6;}
+  else{
+    const d=(f.tUs-S.lastTus)|0;               // wrap-safe delta in microseconds
+    if(d<0||d>5e6){                            // device restarted or long stall: start over
+      const keep=D.mode; resetData(); D.mode=keep; S.tAcc=f.tUs/1e6;
+    }else S.tAcc+=d/1e6;
+  }
+  S.lastTus=f.tUs; S.fs=fs; S.nextIdx=f.idx+f.n;
+  const sm=f.samples, a=1/(2*fs), hold=D.status&&D.status.state>=2;
+  let w=S.w, t=S.tAcc;
+  for(let i=0;i<f.n;i++){
+    const k=w&RM, o=6*i;
+    S.T[k]=S.tAcc+i/fs;
+    for(let c=0;c<3;c++){
+      S.raw[c][k]=sm[o+c]/SCALE;
+      const v=sm[o+3+c]/SCALE; S.flt[c][k]=v;
+      S.ea[c]+=a*(v*v-S.ea[c]);
+    }
+    w++; t=S.T[k];
+  }
+  S.w=w;
+  if(!hold){   // pick the filtered axis with the most energy, but never switch mid-event
+    let b=S.axis; for(let c=0;c<3;c++) if(S.ea[c]>1.5*S.ea[b]) b=c;
+    S.axis=b;
+  }
+  if(t>D.tLatest) D.tLatest=t;
+  if(rec.on) recordFrame(f);
+}
+
+function onStatus(f){
+  D.status=f;
+  const k=env.w&EM; env.T[k]=tNow(); env.rms[k]=f.rms; env.st[k]=f.state; env.w++;
+  if(f.state>=2){
+    if(!cur) cur={t0:tNow(),peak:0,freq:null,fftLocked:false};
+    if(f.peak>cur.peak) cur.peak=f.peak;
+  }else if(cur) cur=null;
+}
+
+function onEvent(e){
+  const fr=freqNow();
+  e.when=new Date();
+  e.fdisp=e.freq>0?{v:e.freq,unc:fr&&fr.meth==='fft'?fr.unc:null,meth:fr&&fr.meth==='fft'?'fft':'zc'}:null;
+  lastEv=e; log.unshift(e); if(log.length>40) log.pop(); cntAll++; logDirty=true;
+  verdict=verdictText(e); verdictDirty=true;
+}
+
+function fmtTime(d){return d.toTimeString().slice(0,8);}
+function verdictText(e){
+  const when=fmtTime(e.when), f1=x=>x.toFixed(1), f2=x=>x.toFixed(2);
+  if(e.accepted){
+    const n=Proto.CHECKS.filter((c,i)=>e.evalMask&(1<<i)).length;
+    return 'Latest event ('+when+'): earthquake, accepted. Sustained shaking'+(e.freq>0?' at '+f2(e.freq)+' Hz':'')+' for '+f1(e.dur)+' s, peak '+e.peak.toFixed(3)+' g (level '+e.level+'); all '+n+' checks passed.';
+  }
+  const why={
+    duration:()=>'it lasted only '+f2(e.dur)+' s (needs '+param('confirm_s')+' s)',
+    steady:()=>'it was not steady (decay '+f2(e.decay)+', needs '+param('decay_min')+')',
+    freq:()=>'its frequency '+(e.freq>0?f1(e.freq)+' Hz':'(none)')+' is outside '+param('fmin')+'-'+param('fmax')+' Hz',
+    crest:()=>'it was a short spike (crest factor '+f1(e.crest)+', limit '+param('crest_max')+')',
+    periodic:()=>'it was not rhythmic (periodicity '+f2(e.periodicity)+', needs '+param('periodic_min')+')',
+    base:()=>'the base sensor barely moved (base/top '+f2(e.baseRatio)+', needs '+param('base_ratio_min')+')'
+  };
+  const reasons=Proto.failedChecks(e.passMask,e.evalMask).map(c=>why[c]());
+  let txt=reasons.length?reasons.join('; ')+'.':'No check details.';
+  txt=txt[0].toUpperCase()+txt.slice(1);
+  return 'Latest event ('+when+'): rejected. '+txt+' Peak '+e.peak.toFixed(3)+' g over '+f1(e.dur)+' s.';
+}
+
+/* ================================================================ FFT (Hann, parabolic peak, per-sensor fs) */
+const NF=2048;
+const cosT=new Float64Array(NF/2), sinT=new Float64Array(NF/2), rev=new Uint16Array(NF);
+for(let i=0;i<NF/2;i++){cosT[i]=Math.cos(PI2*i/NF);sinT[i]=-Math.sin(PI2*i/NF);}
+for(let i=0;i<NF;i++){let r=0,x=i;for(let b=0;b<11;b++){r=(r<<1)|(x&1);x>>=1;}rev[i]=r;}
+const re=new Float64Array(NF), im=new Float64Array(NF), pw=new Float64Array(NF/2+1);
+let hannN=0, hann=null, hannSum=0;
+function setHann(N){
+  if(N===hannN) return; hannN=N; hann=new Float64Array(N); hannSum=0;
+  for(let i=0;i<N;i++){hann[i]=0.5-0.5*Math.cos(PI2*i/(N-1));hannSum+=hann[i];}
+}
+function fft(){
+  for(let i=0;i<NF;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+  for(let len=2;len<=NF;len<<=1){
+    const half=len>>1, step=NF/len;
+    for(let i=0;i<NF;i+=len){
+      for(let j=0;j<half;j++){
+        const wr=cosT[j*step], wi=sinT[j*step], a=i+j, b=a+half;
+        const tr=re[b]*wr-im[b]*wi, ti=re[b]*wi+im[b]*wr;
+        re[b]=re[a]-tr; im[b]=im[a]-ti; re[a]+=tr; im[a]+=ti;
+      }
+    }
+  }
+}
+const fx={lock:false,fe:0,unc:0.05,conf:0};
+function updateSpectra(){
+  for(let s=0;s<2;s++){
+    const S=stores[s], sp=S.spec, NW=Math.min(NF-1,Math.round(4*S.fs));
+    if(S.w<NW){sp.ok=false;continue;}
+    setHann(NW);
+    pw.fill(0);
+    for(let c=0;c<3;c++){                       // vector amplitude: sqrt of the sum over x, y, z
+      const arr=S.flt[c];
+      for(let i=0;i<NW;i++){re[i]=arr[(S.w-NW+i)&RM]*hann[i];im[i]=0;}
+      for(let i=NW;i<NF;i++){re[i]=0;im[i]=0;}
+      fft();
+      for(let k=0;k<=NF/2;k++) pw[k]+=re[k]*re[k]+im[k]*im[k];
+    }
+    const df=S.fs/NF, nb=Math.min(NF/2,Math.floor(25/df)+1), norm=2/hannSum, amp=sp.amp;
+    for(let k=0;k<nb;k++) amp[k]=Math.sqrt(pw[k])*norm;
+    sp.nb=nb; sp.df=df; sp.ok=true;
+    if(s===0){
+      const K1=Math.ceil(1/df), K2=Math.floor(20/df);
+      let kp=K1,mx=0,total=0;
+      for(let k=K1;k<=K2;k++){const a=amp[k];total+=a*a;if(a>mx){mx=a;kp=k;}}
+      let pb=0;for(let k=Math.max(K1,kp-5);k<=Math.min(K2,kp+5);k++)pb+=amp[k]*amp[k];
+      const conf=total>0?pb/total:0;
+      const noise=(total-pb)/Math.max(1,(K2-K1-10)), snr=mx*mx/Math.max(noise,1e-14);
+      let f=kp*df;
+      if(kp>0&&kp<nb-1){const a=Math.log(amp[kp-1]+1e-12),b=Math.log(amp[kp]+1e-12),c=Math.log(amp[kp+1]+1e-12),d=a-2*b+c;if(d!==0)f=(kp+0.5*(a-c)/d)*df;}
+      const lock=conf>0.45&&mx>0.01;
+      if(lock){fx.fe=fx.lock?fx.fe+0.35*(f-fx.fe):f;}
+      fx.lock=lock; fx.conf=conf;
+      fx.unc=Math.min(1,Math.max(0.01,0.2/(2*Math.sqrt(Math.min(snr,1e4)/10))));
+    }
+  }
+}
+
+/* Frequency: the device's zero-crossing estimate (STATUS freq/freqQ) straight away, the browser FFT once the
+   event is >= 4 s old (so the 4 s window is full of shaking). Returns {v,unc,meth,q} or null. */
+function freqNow(){
+  const st=D.status; if(!cur||!st) return null;
+  if(tNow()-cur.t0>=4&&fx.lock&&fx.fe>=1&&fx.fe<=15) return {v:fx.fe,unc:fx.unc,meth:'fft',q:fx.conf};
+  if(st.freq>0) return {v:st.freq,unc:0.25,meth:'zc',q:st.freqQ};   // ~2 s of crossings: about +-0.25 Hz
+  return null;
+}
+
+/* ================================================================ series */
+const SER=[
+  {id:'rx',  name:'S1 raw x',      col:T10[4], on:false, spec:false, kind:'raw', s:0, c:0},
+  {id:'ry',  name:'S1 raw y',      col:T10[5], on:false, spec:false, kind:'raw', s:0, c:1},
+  {id:'rz',  name:'S1 raw z',      col:T10[6], on:false, spec:false, kind:'raw', s:0, c:2},
+  {id:'f1',  name:'S1 filtered',   col:T10[0], on:true,  spec:true,  kind:'flt', s:0},
+  {id:'f2',  name:'S2 filtered',   col:T10[1], on:true,  spec:true,  kind:'flt', s:1},
+  {id:'rms', name:'RMS envelope',  col:T10[2], on:false, spec:false, kind:'env'},
+  {id:'thr', name:'Alarm thresholds', col:T10[3], on:true, spec:false, kind:'thr', dash:true}
+];
+const serBox=$('ser');
+SER.forEach(s=>{
+  const l=document.createElement('label'); if(!s.spec) l.className='nospec';
+  l.innerHTML='<input type="checkbox"'+(s.on?' checked':'')+'><i class="sw'+(s.dash?' dash':'')+'" style="border-top-color:'+s.col+'"></i><span></span>';
+  l.firstChild.addEventListener('change',e=>{s.on=e.target.checked;});
+  s.label=l.lastChild; serBox.appendChild(l);
+});
+function serName(s){return s.kind==='flt'?s.name+' ('+'xyz'[stores[s.s].axis]+')':s.name;}
+function refreshSerNames(){SER.forEach(s=>{const n=serName(s); if(s.label.textContent!==n) s.label.textContent=n;});}
+
+// first absolute index in ring (T, w, size) with T >= tmin
+function winStart(T,w,mask,size,tmin){
+  let lo=Math.max(0,w-size), hi=w;
+  while(lo<hi){const m=(lo+hi)>>1; if(T[m&mask]<tmin) lo=m+1; else hi=m;}
+  return lo;
+}
+function seriesData(s){   // -> {T,V,w,mask,size}
+  if(s.kind==='raw'){const S=stores[s.s];return {T:S.T,V:S.raw[s.c],w:S.w,mask:RM,size:RB};}
+  if(s.kind==='flt'){const S=stores[s.s];return {T:S.T,V:S.flt[S.axis],w:S.w,mask:RM,size:RB};}
+  return {T:env.T,V:env.rms,w:env.w,mask:EM,size:EB};
+}
+
+/* ================================================================ canvas plot */
+const cv=$('cv'), ctx=cv.getContext('2d');
+let CW=10,CH=10;
+function fit(){
+  const r=cv.getBoundingClientRect(), d=window.devicePixelRatio||1;
+  CW=Math.max(10,r.width); CH=Math.max(10,r.height);
+  cv.width=Math.round(CW*d); cv.height=Math.round(CH*d); ctx.setTransform(d,0,0,d,0,0);
+}
+if(window.ResizeObserver) new ResizeObserver(fit).observe(cv.parentNode);
+window.addEventListener('resize',fit); fit();
+
+const FONT='"DejaVu Sans",Verdana,"Bitstream Vera Sans",sans-serif';
+const GRID='#ececec', INK='#000';
+let view='time';
+function niceStep(x){
+  const p=Math.pow(10,Math.floor(Math.log10(x))), m=x/p;
+  return (m<=1?1:m<=2?2:m<=5?5:10)*p;
+}
+function fmtTick(v,step){
+  const d=step>=1?0:Math.min(3,Math.ceil(-Math.log10(step)-1e-9));
+  const s=v.toFixed(d); return s==='-0'||s==='-0.0'||s==='-0.00'||s==='-0.000'?s.slice(1):s;
+}
+
+let ty0=-0.1, ty1=0.1, sy1=0.05;
+function timeRange(tN){
+  let lo=Infinity,hi=-Infinity,raw=false,sgn=false,any=false;
+  for(const s of SER){
+    if(!s.on||s.kind==='thr') continue;
+    const d=seriesData(s), k0=winStart(d.T,d.w,d.mask,d.size,tN-TW);
+    if(k0>=d.w) continue;
+    any=true; if(s.kind==='raw') raw=true; else if(s.kind==='flt') sgn=true;
+    for(let k=k0;k<d.w;k+=2){const v=d.V[k&d.mask];if(v<lo)lo=v;if(v>hi)hi=v;}
+  }
+  if(!any||lo>hi){lo=0;hi=0.1;}
+  if(SER[6].on){hi=Math.max(hi,param('on_thr')*1.6);lo=Math.min(lo,0);}
+  if(raw){ /* as is */ }
+  else if(sgn){const m=Math.max(Math.abs(lo),Math.abs(hi),0.1);lo=-m;hi=m;}
+  else {lo=Math.min(lo,0);hi=Math.max(hi,0.1);}
+  if(hi-lo<0.2){const c=(hi+lo)/2;lo=c-0.1;hi=c+0.1;}
+  const pad=(hi-lo)*0.08; return [lo-(lo<0?pad:0),hi+pad];
+}
+
+function draw(){
+  const w=CW,h=CH, spec=view==='spec', tN=tNow();
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+  const L=64,R=6,B=46, pw_=w-L-R;
+  const ON=param('on_thr'), OFF=param('off_thr');
+
+  // legend entries (only what is drawn)
+  const ents=[];
+  for(const s of SER){
+    if(!s.on) continue;
+    if(spec){ if(s.spec) ents.push({c:s.col,t:serName(s).replace(/ \(.\)$/,''),d:false}); continue; }
+    if(s.kind==='thr'){ents.push({c:s.col,t:'Alarm on '+ON.toFixed(3)+' g (RMS)',d:true});ents.push({c:'#e89a9b',t:'Alarm off '+OFF.toFixed(3)+' g',d:true});}
+    else ents.push({c:s.col,t:serName(s)+(s.kind==='env'?' (S1)':''),d:false});
+  }
+  ctx.font='11px '+FONT;
+  const pad=7, gap=16, sw=22, rowH=17;
+  const wid=ents.map(e=>sw+6+ctx.measureText(e.t).width);
+  const rows=[[]]; let rw=pad*2;
+  ents.forEach((e,i)=>{
+    const need=wid[i]+(rows[rows.length-1].length?gap:0);
+    if(rw+need>pw_&&rows[rows.length-1].length){rows.push([]);rw=pad*2;}
+    rows[rows.length-1].push(i); rw+=wid[i]+(rows[rows.length-1].length>1?gap:0);
+  });
+  const legH=ents.length?rows.length*rowH+pad*2-4:0;
+  const T=34+legH+(legH?10:0);
+  const ph=h-T-B;
+  if(ph<40) return;
+
+  ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.font='14px '+FONT;
+  ctx.fillText(spec?'Amplitude spectrum (4 s Hann window)':'Acceleration, last 10 s',L,22);
+
+  if(ents.length){
+    let maxW=0; rows.forEach(r=>{let tw=pad*2;r.forEach((i,j)=>{tw+=wid[i]+(j?gap:0);});maxW=Math.max(maxW,tw);});
+    const ly=34;
+    ctx.strokeStyle='#d0d0d0';ctx.lineWidth=1;ctx.fillStyle='#fff';
+    ctx.fillRect(L+.5,ly+.5,maxW,legH);ctx.strokeRect(L+.5,ly+.5,maxW,legH);
+    ctx.font='11px '+FONT;ctx.textBaseline='middle';
+    rows.forEach((r,ri)=>{
+      let x=L+pad, y=ly+pad+ri*rowH+rowH/2-2;
+      r.forEach(i=>{
+        const e=ents[i];
+        ctx.strokeStyle=e.c;ctx.lineWidth=1.5;ctx.setLineDash(e.d?[4,3]:[]);
+        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+sw,y);ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle=INK;ctx.textAlign='left';ctx.fillText(e.t,x+sw+6,y);
+        x+=wid[i]+gap;
+      });
+    });
+    ctx.textBaseline='alphabetic';
+  }
+
+  let X, Y, y0, y1, xTicks, xLab, yLab;
+  if(!spec){
+    const [a,b]=timeRange(tN);
+    ty0=a<ty0?a:ty0+(a-ty0)*0.04; ty1=b>ty1?b:ty1+(b-ty1)*0.04;
+    y0=ty0;y1=ty1;
+    X=t=>L+(t-(tN-TW))/TW*pw_;
+    xTicks=[];for(let i=0;i<=5;i++) xTicks.push({v:i/5,t:String(-10+2*i)});
+    xLab='Time (s)'; yLab='Acceleration (g)';
+  }else{
+    let mx=0.02;
+    SER.forEach(s=>{if(s.on&&s.spec){const sp=stores[s.s].spec;if(sp.ok)for(let k=0;k<sp.nb;k++)if(sp.amp[k]>mx)mx=sp.amp[k];}});
+    const b=mx*1.15; sy1=b>sy1?b:sy1+(b-sy1)*0.04;
+    y0=0;y1=sy1;
+    X=f=>L+f/25*pw_;
+    xTicks=[];for(let f=0;f<=25;f+=5) xTicks.push({v:f/25,t:String(f)});
+    xLab='Frequency (Hz)'; yLab='Amplitude (g)';
+  }
+  Y=v=>T+(y1-v)/(y1-y0)*ph;
+  const step=niceStep((y1-y0)/6);
+
+  // alarm background (time view only): shaded while the device state is ALARM
+  if(!spec&&env.w>1){
+    ctx.fillStyle='rgba(214,39,40,0.08)';
+    const k0=winStart(env.T,env.w,EM,EB,tN-TW-1);
+    let sx=null;
+    for(let k=k0;k<env.w;k++){
+      const al=env.st[k&EM]===3, x=Math.max(L,Math.min(L+pw_,X(env.T[k&EM])));
+      if(al&&sx===null) sx=x;
+      if(!al&&sx!==null){ctx.fillRect(sx,T,x-sx,ph);sx=null;}
+    }
+    if(sx!==null) ctx.fillRect(sx,T,L+pw_-sx,ph);
+  }
+
+  // grid + ticks
+  ctx.lineWidth=1;ctx.font='11px '+FONT;
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let v=Math.ceil(y0/step-1e-9)*step;v<=y1+1e-9;v+=step){
+    const y=Math.round(Y(v))+.5;
+    ctx.strokeStyle=GRID;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw_,y);ctx.stroke();
+    ctx.strokeStyle=INK;ctx.beginPath();ctx.moveTo(L-4,y);ctx.lineTo(L,y);ctx.stroke();
+    ctx.fillStyle=INK;ctx.fillText(fmtTick(Math.abs(v)<1e-9?0:v,step),L-7,y);
+  }
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(const tk of xTicks){
+    const x=Math.round(L+tk.v*pw_)+.5;
+    ctx.strokeStyle=GRID;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();
+    ctx.strokeStyle=INK;ctx.beginPath();ctx.moveTo(x,T+ph);ctx.lineTo(x,T+ph+4);ctx.stroke();
+    ctx.fillStyle=INK;ctx.fillText(tk.t,Math.min(w-8,Math.max(L+4,x)),T+ph+7);
+  }
+  if(!spec&&y0<0&&y1>0){ctx.strokeStyle='#cfcfcf';ctx.beginPath();ctx.moveTo(L,Math.round(Y(0))+.5);ctx.lineTo(L+pw_,Math.round(Y(0))+.5);ctx.stroke();}
+
+  // data
+  ctx.save();ctx.beginPath();ctx.rect(L,T,pw_,ph);ctx.clip();
+  ctx.lineWidth=1.5;ctx.lineJoin='round';
+  if(!spec){
+    for(let i=SER.length-1;i>=0;i--){
+      const s=SER[i]; if(!s.on) continue;
+      if(s.kind==='thr'){
+        ctx.setLineDash([6,4]);
+        ctx.strokeStyle=s.col;let yy=Math.round(Y(ON))+.5;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(L+pw_,yy);ctx.stroke();
+        ctx.strokeStyle='#e89a9b';yy=Math.round(Y(OFF))+.5;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(L+pw_,yy);ctx.stroke();
+        ctx.setLineDash([]);continue;
+      }
+      const d=seriesData(s), k0=winStart(d.T,d.w,d.mask,d.size,tN-TW);
+      if(k0>=d.w) continue;
+      ctx.strokeStyle=s.col;ctx.beginPath();
+      const stride=Math.max(1,Math.floor((d.w-k0)/(pw_*1.5)));
+      let first=true;
+      for(let k=k0;k<d.w;k+=stride){const x=X(d.T[k&d.mask]),y=Y(d.V[k&d.mask]);first?ctx.moveTo(x,y):ctx.lineTo(x,y);first=false;}
+      ctx.stroke();
+    }
+    if(!D.mode){
+      ctx.fillStyle='#777';ctx.font='12px '+FONT;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('No data source. Choose Connect USB or Simulator in the sidebar.',L+pw_/2,T+ph/2);
+    }
+  }else{
+    for(const s of SER){
+      if(!s.on||!s.spec) continue;
+      const sp=stores[s.s].spec; if(!sp.ok) continue;
+      ctx.strokeStyle=s.col;ctx.beginPath();
+      for(let k=0;k<sp.nb;k++){const x=X(k*sp.df),y=Y(sp.amp[k]);k?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+      ctx.stroke();
+    }
+    ctx.fillStyle='#777';ctx.font='12px '+FONT;ctx.textAlign='center';ctx.textBaseline='middle';
+    if(!SER[3].on&&!SER[4].on) ctx.fillText('Enable S1 filtered or S2 filtered to see a spectrum',L+pw_/2,T+ph/2);
+    else if(!stores[0].spec.ok&&!stores[1].spec.ok) ctx.fillText(D.mode?'Collecting 4 s of data…':'No data source.',L+pw_/2,T+ph/2);
+  }
+  ctx.restore();
+
+  // peak marker in spectrum view
+  const fr=spec?freqNow():null;
+  if(fr){
+    const x=Math.round(X(fr.v))+.5;
+    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();ctx.setLineDash([]);
+    const lab=(fr.meth==='zc'?'≈ ':'')+fr.v.toFixed(fr.meth==='zc'?1:2)+' Hz';
+    ctx.fillStyle=INK;ctx.font='12px '+FONT;ctx.textBaseline='top';
+    const right=x>L+pw_-90; ctx.textAlign=right?'right':'left';
+    ctx.fillText(lab,x+(right?-6:6),T+6);
+  }
+
+  // spines (left + bottom only)
+  ctx.strokeStyle=INK;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(L+.5,T);ctx.lineTo(L+.5,T+ph+.5);ctx.lineTo(L+pw_,T+ph+.5);ctx.stroke();
+
+  ctx.fillStyle=INK;ctx.font='12px '+FONT;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText(xLab,L+pw_/2,h-6);
+  ctx.save();ctx.translate(14,T+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText(yLab,0,0);ctx.restore();
+}
+
+/* ================================================================ text UI */
+const el={status:$('status'),msg:$('stmsg'),freq:$('freq'),fmeth:$('fmeth'),peak:$('vPeak'),rms:$('vRms'),base:$('vBase'),mag:$('vMag'),amp:$('vAmp'),
+  foot:$('foot'),verdict:$('verdict'),evBtn:$('evBtn'),evBox:$('evbox'),srcmsg:$('srcmsg')};
+const cache={};
+function setText(k,node,v){if(cache[k]!==v){cache[k]=v;node.textContent=v;}}
+function setHTML(k,node,v){if(cache[k]!==v){cache[k]=v;node.innerHTML=v;}}
+function setStale(node,on){node.classList.toggle('stale',on);}
+const MD='—';
+
+function ui(){
+  const now=performance.now(), st=D.status;
+  const silent=D.mode&&(now-D.lastFrameMs>1500);
+  let word,cls,msg,state=-1;
+  if(!D.mode){word='OFFLINE';cls='off';msg='Choose a data source below.';}
+  else if(silent){word='NO LINK';cls='off';msg='No data from the device for '+((now-D.lastFrameMs)/1000).toFixed(0)+' s.';}
+  else if(!st){word='WAITING';cls='off';msg='Waiting for the first status frame…';}
+  else{
+    state=st.state;
+    const on=param('on_thr');
+    if(state===1){word='IDLE';cls='idle';msg='Listening. Nothing above '+on.toFixed(3)+' g.';}
+    else if(state===2){
+      const n=Proto.CHECKS.filter((c,i)=>st.evalMask&(1<<i)).length;
+      let p=0; for(let i=0;i<6;i++) if((st.evalMask&(1<<i))&&(st.passMask&(1<<i))) p++;
+      word='SHAKING?';cls='shaking';msg='Above '+on.toFixed(3)+' g. Checking whether it is sustained ('+p+' of '+n+' checks passing)…';
+    }else if(state===3){
+      const fr=freqNow();
+      word='ALARM';cls='alarm';msg='Sustained'+(fr?(fr.meth==='zc'?' ≈':'')+' '+fr.v.toFixed(1)+' Hz':'')+' shaking for '+st.dur.toFixed(1)+' s'+(st.silenced?' (silenced)':'');
+    }else if(state===0){word='STARTING';cls='off';msg='Warming up the sensors.';}
+    else{word='FAULT';cls='alarm';msg='Sensor fault: no accelerometer responding.';}
+  }
+  const isAlarm=state===3;
+  if(cache.word!==word||cache.cls!==cls){
+    cache.word=word;cache.cls=cls; el.status.textContent=word; el.status.className='st '+cls;
+  }
+  if(cache.alarm!==isAlarm){cache.alarm=isAlarm;document.body.classList.toggle('alarm',isAlarm);document.title=(isAlarm?'ALARM - ':'')+'Earth Detector';}
+  setText('msg',el.msg,msg);
+
+  // frequency
+  const live=!!cur&&!silent;
+  let fh=MD, fm='waiting for shaking', fr=live?freqNow():null;
+  if(fr){
+    const fft=fr.meth==='fft';
+    fh=(fft?'':'≈ ')+'<span>'+fr.v.toFixed(fft?2:1)+'</span><span class="unit"> ± '+fr.unc.toFixed(fft?2:1)+' Hz</span>';
+    fm=fft?'FFT, Hann window, parabolic peak':'device zero-crossing, quality '+fr.q.toFixed(2);
+  }else if(live){fh='…';fm='measuring';}
+  else if(lastEv&&lastEv.fdisp){
+    const d=lastEv.fdisp, fft=d.meth==='fft';
+    fh=(fft?'':'≈ ')+'<span>'+d.v.toFixed(fft?2:1)+'</span>'+(d.unc!==null?'<span class="unit"> ± '+d.unc.toFixed(2)+' Hz</span>':'<span class="unit"> Hz</span>');
+    fm='last event';
+  }else if(lastEv){fm='no frequency (impulse)';}
+  setHTML('freq',el.freq,fh); setText('fm',el.fmeth,fm);
+  setStale(el.freq,!fr);
+
+  // numbers
+  setText('rms',el.rms,st&&D.mode?st.rms.toFixed(3):MD);
+  setText('base',el.base,st&&D.mode&&st.baseRms>0?st.baseRms.toFixed(3):MD);
+  let pk=null,lv=null,am=null;
+  if(live&&st){pk=cur.peak;lv=st.level;am=st.baseRms>1e-4?st.rms/st.baseRms:null;}
+  else if(lastEv){pk=lastEv.peak;lv=lastEv.level;am=lastEv.baseRatio>1e-3?1/lastEv.baseRatio:null;}
+  setText('peak',el.peak,pk!==null?pk.toFixed(3):MD);
+  setText('mag',el.mag,lv!==null?lv+' · '+LV[Math.min(5,lv)]:MD);
+  setText('amp',el.amp,am?am.toFixed(1)+' ×':MD);
+  [el.peak,el.mag,el.amp].forEach(e=>setStale(e,!live));
+
+  setText('evb',el.evBtn,'Events ('+cntAll+')');
+  if(verdictDirty){verdictDirty=false;el.verdict.textContent=verdict;}
+  if(logDirty&&!el.evBox.hidden) buildLog();
+  refreshSerNames();
+  if(settingsDirty&&!$('settings').hidden) buildSettings();
+  if(rec.on) $('bRec').textContent='Stop ('+((now-rec.t0)/1000).toFixed(0)+' s)';
+  setText('foot',el.foot,footText(now,silent));
+}
+
+function footText(now,silent){
+  if(!D.mode) return 'No data source. USB needs Chrome or Edge on http://localhost; the simulator runs anywhere.';
+  const h=D.health, f0=stores[0].fs, f1=stores[1].fs;
+  let t='Data: ';
+  if(h){
+    const a=h.sensors[0], b=h.sensors[1];
+    t+='S1 '+a.odr.toFixed(0)+' Hz → '+f0.toFixed(0)+' Hz, S2 '+b.odr.toFixed(0)+' Hz → '+f1.toFixed(0)+' Hz (measured, raw → plotted), band-pass 0.5–25 Hz. '
+      +'Overruns '+a.overruns+'/'+b.overruns+', I2C errors '+a.i2c+'/'+b.i2c+', noise '+a.noiseMg.toFixed(1)+'/'+b.noiseMg.toFixed(1)+' mg. ';
+  }else t+='S1 '+f0.toFixed(0)+' Hz, S2 '+f1.toFixed(0)+' Hz, band-pass 0.5–25 Hz. ';
+  const lost=D.parser?D.parser.stats.lost:0, bad=D.parser?D.parser.stats.bad:0;
+  t+='Dropped frames: '+lost+' lost, '+bad+' corrupt'+(h?', '+h.dropped+' device queue':'')+'. ';
+  const ago=now-D.lastFrameMs;
+  t+='Link: '+(D.mode==='usb'?'USB, 921600 baud':'simulated')+(silent?', silent':'')+', last frame '+ago.toFixed(0)+' ms ago.';
+  return t;
+}
+
+function buildLog(){
+  logDirty=false;
+  if(!log.length){el.evBox.innerHTML='<div class="empty">No events recorded.</div>';return;}
+  let h='<table><tr><th>Time</th><th>Verdict</th><th>Peak (g)</th><th>Freq (Hz)</th><th>Duration (s)</th><th>Magnitude</th></tr>';
+  for(const e of log){
+    h+='<tr><td>'+fmtTime(e.when)+'</td><td class="'+(e.accepted?'q':'')+'">'+(e.accepted?'Earthquake, alarm':'Rejected')+'</td><td>'+e.peak.toFixed(3)+'</td><td>'+(e.freq>0?e.freq.toFixed(2):'—')+'</td><td>'+e.dur.toFixed(1)+'</td><td>'+e.level+' · '+LV[Math.min(5,e.level)]+'</td></tr>';
+  }
+  el.evBox.innerHTML=h+'</table>';
+}
+
+/* ================================================================ settings (PARAMS) */
+let settingsDirty=true;
+function buildSettings(){
+  settingsDirty=false;
+  const box=$('settings');
+  if(!D.params){box.innerHTML='<span class="small">Waiting for the device to report its settings…</span>';return;}
+  if(box.contains(document.activeElement)&&document.activeElement.tagName==='INPUT'){   // do not disturb typing
+    box.querySelectorAll('input').forEach(i=>{if(i!==document.activeElement)i.value=+D.params[+i.dataset.id].toPrecision(6);});
+    return;
+  }
+  let h='<table>';
+  D.params.forEach((v,i)=>{
+    const n=Proto.PARAM_NAMES[i]||('param'+i);
+    h+='<tr title="'+(PARAM_HELP[n]||'')+'"><td>'+n+'</td><td><input data-id="'+i+'" type="number" step="any" value="'+(+v.toPrecision(6))+'"></td></tr>';
+  });
+  h+='</table><div class="line"><button id="bReset" class="lnk">Reset to defaults</button></div>';
+  box.innerHTML=h;
+  box.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{
+    const v=parseFloat(inp.value); if(!isFinite(v)) {settingsDirty=true;return;}
+    send(Proto.Cmd.setParam(+inp.dataset.id,v));
+  }));
+  $('bReset').onclick=()=>send(Proto.Cmd.resetParams());
+}
+
+/* ================================================================ recording (decimated samples to CSV) */
+const rec={on:false,rows:[],t0:0,n:0};
+function recordFrame(f){
+  const sm=f.samples;
+  for(let i=0;i<f.n;i++){
+    const o=6*i, t=(f.tUs+Math.round(i*1e6/f.fs))>>>0;
+    rec.rows.push((f.sensor+1)+','+(f.idx+i)+','+t+','+f.fs.toFixed(4)+','+
+      (sm[o]/SCALE).toFixed(5)+','+(sm[o+1]/SCALE).toFixed(5)+','+(sm[o+2]/SCALE).toFixed(5)+','+
+      (sm[o+3]/SCALE).toFixed(5)+','+(sm[o+4]/SCALE).toFixed(5)+','+(sm[o+5]/SCALE).toFixed(5)+','+(f.gap&&i===0?1:0));
+  }
+  if(rec.rows.length>3000000) stopRec();
+}
+function startRec(){rec.rows=[];rec.on=true;rec.t0=performance.now();$('bRec').classList.add('on');}
+function stopRec(){
+  if(!rec.on) return;
+  rec.on=false; $('bRec').classList.remove('on'); $('bRec').textContent='Record';
+  if(!rec.rows.length) return;
+  const blob=new Blob(['sensor,index,t_us,fs,ax,ay,az,fx,fy,fz,gap\n',rec.rows.join('\n'),'\n'],{type:'text/csv'});
+  const d=new Date(), p=x=>String(x).padStart(2,'0');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='earth-detector-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+  rec.rows=[];
+}
+
+/* ================================================================ commands */
+function send(bytes){
+  if(D.mode==='usb'&&usb&&usb.writer){usb.writer.write(bytes).catch(e=>srcMsg('Write failed: '+e.message));}
+  else if(D.mode==='sim') Sim.command(bytes);
+}
+
+/* ================================================================ Web Serial */
+let usb=null;
+function srcMsg(t){el.srcmsg.textContent=t;}
+const hasSerial=('serial' in navigator);
+async function connectUsb(){
+  if(usb){await closeUsb();return;}
+  stopSim();
+  let port;
+  try{port=await navigator.serial.requestPort();}catch(e){srcMsg('No port selected.');return;}
+  try{await port.open({baudRate:921600,bufferSize:1<<16});}
+  catch(e){srcMsg('Could not open the port: '+e.message+' (is another program using it?)');return;}
+  try{await port.setSignals({dataTerminalReady:false,requestToSend:false});}catch(e){}
+  usb={port,writer:port.writable.getWriter(),reader:null,closing:false};
+  resetData(); D.mode='usb'; D.lastFrameMs=performance.now();
+  D.parser=new Proto.Parser(handle);
+  updateSource(); srcMsg('Connected.');
+  send(Proto.Cmd.getParams());
+  readLoop(usb);
+}
+async function readLoop(u){
+  const reader=u.port.readable.getReader(); u.reader=reader;
+  try{
+    for(;;){const {value,done}=await reader.read(); if(done) break; if(value) D.parser.push(value);}
+  }catch(e){if(!u.closing) srcMsg('Link error: '+e.message);}
+  try{reader.releaseLock();}catch(e){}
+  if(usb===u) await closeUsb(!u.closing&&'Disconnected.');
+}
+async function closeUsb(message){
+  const u=usb; if(!u) return;
+  usb=null; u.closing=true; stopRec();
+  try{await u.reader.cancel();}catch(e){}
+  try{u.writer.releaseLock();}catch(e){}
+  try{await u.port.close();}catch(e){}
+  if(D.mode==='usb') D.mode=null;
+  updateSource(); srcMsg(message||'Disconnected.');
+}
+if(hasSerial) navigator.serial.addEventListener('disconnect',()=>{if(usb) closeUsb('USB device unplugged.');});
+
+function updateSource(){
+  $('bUsb').textContent=usb?'Disconnect USB':'Connect USB';
+  $('bUsb').classList.toggle('on',!!usb);
+  $('bSim').classList.toggle('on',D.mode==='sim');
+  $('simrow').hidden=D.mode!=='sim';
+  $('bUsb').disabled=!hasSerial;
+  ['bRezero','bTest','bSil','bRec'].forEach(id=>{$(id).disabled=!D.mode;});
+}
+$('bUsb').onclick=connectUsb;
+$('bSim').onclick=async()=>{ if(D.mode==='sim'){stopSim();return;} if(usb) await closeUsb('Disconnected.'); startSim(); };
+$('bRezero').onclick=()=>send(Proto.Cmd.rezero(3));
+$('bTest').onclick=()=>send(Proto.Cmd.testAlarm());
+$('bSil').onclick=()=>send(Proto.Cmd.silence());
+$('bRec').onclick=()=>{rec.on?stopRec():startRec();};
+$('setBtn').onclick=()=>{const b=$('settings');b.hidden=!b.hidden;$('setBtn').classList.toggle('on',!b.hidden);if(!b.hidden){buildSettings();if(D.mode&&!D.params)send(Proto.Cmd.getParams());}};
+
+/* ================================================================ simulator (a fake device speaking the same frames) */
+const Sim=(function(){
+  const FS=[207.26,196.96], BASE=[[0.012,-0.008,1.018],[-0.015,0.010,0.980]], NOISE=0.004, WIN=100;
+  let start=0, auto=true, ph=4, phEnd=0, firstQ=true, events=[], timer=null;
+  let P=DEFAULTS.slice(), S=null, dev=null, health=0, statusAt=0;
+  const sg=[0,0,0];
+  function biquad(type,fc,fs,Q){
+    const w0=PI2*fc/fs,c=Math.cos(w0),s=Math.sin(w0),al=s/(2*Q);
+    let b0,b1,b2;
+    if(type==='hp'){b0=(1+c)/2;b1=-(1+c);b2=(1+c)/2;}else{b0=(1-c)/2;b1=1-c;b2=(1-c)/2;}
+    const a0=1+al;return {b0:b0/a0,b1:b1/a0,b2:b2/a0,a1:-2*c/a0,a2:(1-al)/a0};
+  }
+  function run(q,st,x){const y=q.b0*x+st.z1;st.z1=q.b1*x-q.a1*y+st.z2;st.z2=q.b2*x-q.a2*y;return y;}
+  function gauss(){let u=0;while(u===0)u=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(PI2*Math.random());}
+  function mk(i){
+    return {n:0,fs:FS[i],hp:biquad('hp',0.5,FS[i],Math.SQRT1_2),lp:biquad('lp',25,FS[i],Math.SQRT1_2),
+      f:[0,1,2].map(()=>({init:false,hp:{z1:0,z2:0},lp:{z1:0,z2:0}})),
+      win:new Float32Array(WIN),wi:0,sumsq:0,rms:0,pkw:0,mag:0,buf:new Int16Array(60),bn:0,idx:0,firstT:0,
+      hist:new Float32Array(WIN),zc:[],zcPrev:0,zcArmed:true};
+  }
+  function reset(){
+    S=[mk(0),mk(1)]; events=[]; ph=4; phEnd=0; firstQ=true; statusAt=0; health=0;
+    dev={state:1,cand:0,alarmT:0,quiet:0,id:0,ev:null,freq:0,freqQ:0};
+  }
+  function fireBump(t){events.push({k:'b',t0:t,A:0.3+Math.random()*0.5,f:20+Math.random()*10,tau:0.05+Math.random()*0.025,dir:[0.85,0.3+Math.random()*0.2,0.45+Math.random()*0.2]});}
+  function fireQuake(t,f){
+    for(const e of events) if(e.k==='q') return;
+    events.push({k:'q',t0:t,D:8,f:f||(3+Math.random()*5),a2:0.14+Math.random()*0.03,a1:0.33+Math.random()*0.07,lag:0.35+Math.random()*0.2});
+  }
+  const PH=[{d:6},{d:0.4,fire:'b'},{d:5},{d:8,fire:'q'},{d:6}];
+  function autoTick(t){
+    if(!auto||t<phEnd) return;
+    ph=(ph+1)%PH.length; const p=PH[ph]; phEnd=t+p.d;
+    if(p.fire==='b') fireBump(t); else if(p.fire==='q'){fireQuake(t,firstQ?4.72:0);firstQ=false;}
+  }
+  function eventSig(s,t){
+    sg[0]=sg[1]=sg[2]=0;
+    for(const e of events){
+      const tt=t-e.t0; if(tt<0) continue;
+      if(e.k==='b'){
+        if(tt>1.5) continue;
+        const g=(s===0?1:0.12)*e.A*Math.exp(-tt/e.tau)*Math.sin(PI2*e.f*tt);
+        sg[0]+=g*e.dir[0]; sg[1]+=g*e.dir[1]; sg[2]+=g*e.dir[2];
+      }else{
+        if(tt>e.D) continue;
+        const env=Math.max(0,Math.min(1,tt,e.D-tt));
+        const amp=(s===0?e.a1:e.a2)*env, th=PI2*e.f*tt-(s===0?e.lag:0);
+        sg[0]+=amp*(Math.sin(th)+0.1*Math.sin(2*th+0.7));
+        sg[1]+=0.22*amp*Math.sin(th+1.1);
+        sg[2]+=0.10*amp*Math.sin(th+2.0);
+      }
+    }
+  }
+  const lvlFor=r=>{let l=0;for(let i=0;i<5;i++) if(r>=P[12+i]) l=i+1;return l;};
+
+  function step(s){
+    const Z=S[s], t=Z.n/Z.fs;
+    if(s===0){autoTick(t);events=events.filter(e=>t-e.t0<=(e.k==='b'?1.5:e.D+0.1));}
+    eventSig(s,t); let m2=0;
+    const out=Z.buf, o=Z.bn*6;
+    for(let a=0;a<3;a++){
+      const raw=BASE[s][a]+gauss()*NOISE+sg[a], f=Z.f[a];
+      if(!f.init){f.init=true;f.hp.z1=-Z.hp.b0*raw;f.hp.z2=Z.hp.b2*raw;}
+      const y=run(Z.lp,f.lp,run(Z.hp,f.hp,raw));
+      out[o+a]=Math.round(raw*SCALE); out[o+3+a]=Math.round(y*SCALE); m2+=y*y;
+      if(a===0&&s===0) detZc(Z,y,t);
+    }
+    Z.mag=Math.sqrt(m2);
+    Z.sumsq+=m2-Z.win[Z.wi]; if(Z.sumsq<0)Z.sumsq=0; Z.win[Z.wi]=m2; Z.wi=(Z.wi+1)%WIN;
+    Z.rms=Math.sqrt(Z.sumsq/WIN);
+    let pk=0;for(let i=0;i<WIN;i++) if(Z.win[i]>pk) pk=Z.win[i]; Z.pkw=Math.sqrt(pk);
+    if(Z.bn===0) Z.firstT=t;
+    Z.bn++; Z.n++;
+    if(Z.bn===10){
+      handle({type:'data',sensor:s,flags:0,gap:false,zeroed:false,n:10,idx:Z.idx,tUs:Math.round(Z.firstT*1e6)>>>0,fs:Z.fs,samples:Int16Array.from(out.subarray(0,60))});
+      Z.idx+=10; Z.bn=0;
+    }
+    if(s===0){
+      detect(t,1/Z.fs);
+      if(Z.n%20===0) emitStatus();
+      if(Z.n%Math.round(Z.fs)===0) emitHealth();
+    }
+  }
+  function detZc(Z,v,t){
+    if(v<-0.015) Z.zcArmed=true;
+    if(Z.zcArmed&&Z.zcPrev<=0&&v>0){Z.zc.push(t);Z.zcArmed=false;if(Z.zc.length>24)Z.zc.shift();}
+    Z.zcPrev=v;
+    if(Z.zc.length&&t-Z.zc[Z.zc.length-1]>1) Z.zc.length=0;
+    let i0=Z.zc.length; while(i0>0&&t-Z.zc[i0-1]<=2) i0--;
+    const cnt=Z.zc.length-i0;
+    if(cnt>=3){dev.freq=(cnt-1)/(Z.zc[Z.zc.length-1]-Z.zc[i0]);dev.freqQ=0.9;}else{dev.freq=0;dev.freqQ=0;}
+  }
+  function features(){
+    const Z=S[0], B=S[1], rms=Z.rms, crest=rms>0.02?Z.pkw/rms:0;
+    const old=Z.hist[Z.wi]; Z.hist[Z.wi]=rms;           // rms from 0.5 s ago
+    const decay=old>1e-4?Math.min(2,rms/old):1;
+    return {rms,crest,decay,peak:Z.pkw,periodicity:crest>0&&crest<3.2?0.8:0.2,baseRms:B.rms,basePeak:B.pkw,
+      freq:dev.freq,freqQ:dev.freqQ};
+  }
+  let F=null, curPass=0, curEval=0;
+  function detect(t,dt){
+    F=features();
+    const eval_=0x3F; let pass=0;
+    if(dev.cand>=P[2]) pass|=1;
+    if(F.decay>=P[7]) pass|=2;
+    if(F.freq>=P[3]&&F.freq<=P[4]&&F.freqQ>=0.5) pass|=4;
+    if(F.crest>0&&F.crest<=P[5]) pass|=8;
+    if(F.periodicity>=P[6]) pass|=16;
+    const br=F.rms>1e-6?F.baseRms/F.rms:0; if(br>=P[8]) pass|=32;
+    curPass=pass; curEval=eval_;
+    const track=()=>{
+      const e=dev.ev;
+      if(F.peak>e.peak) e.peak=F.peak;
+      if(F.basePeak>e.pga) e.pga=F.basePeak;
+      if(F.rms>=e.rms){e.rms=F.rms;e.pass=pass;e.eval=eval_;e.crest=F.crest;e.per=F.periodicity;e.decay=F.decay;e.br=br;e.fmax=F.freq;}
+      const l=lvlFor(F.rms); if(l>e.level) e.level=l;
+    };
+    if(dev.state===1){
+      if(F.rms>=P[0]){
+        dev.ev={id:++dev.id,peak:0,pga:0,rms:0,pass:0,eval:0,crest:0,per:0,decay:0,br:0,fmax:0,level:0,fsum:0,fn:0,dur:0};
+        dev.cand=0; dev.state=2;
+      }
+    }else if(dev.state===2){
+      dev.cand+=dt; dev.ev.dur=dev.cand; track();
+      if(F.rms<P[1]){
+        if(dev.cand>=P[2]) dev.ev.pass|=1; else dev.ev.pass&=~1; dev.ev.eval|=1;
+        emitEvent(0); dev.state=1;
+      }else if(pass===eval_){dev.state=3;dev.alarmT=0;dev.quiet=0;dev.ev.pass=pass;dev.ev.eval=eval_;}
+    }else if(dev.state===3){
+      dev.alarmT+=dt; dev.cand+=dt; dev.ev.dur=dev.cand;
+      const e=dev.ev;
+      if(F.rms>e.rms){e.rms=F.rms;e.fmax=F.freq;} if(F.peak>e.peak) e.peak=F.peak; if(F.basePeak>e.pga) e.pga=F.basePeak;
+      if(F.freq>0&&F.freqQ>=0.5){e.fsum+=F.freq;e.fn++;}
+      const l=lvlFor(F.rms); if(l>e.level) e.level=l;
+      dev.quiet=F.rms<P[1]?dev.quiet+dt:0;
+      if(dev.alarmT>=P[9]&&dev.quiet>=P[10]){e.dur=dev.cand-dev.quiet;emitEvent(1);dev.state=1;}
+    }
+  }
+  function emitStatus(){
+    const lv=dev.state===3?dev.ev.level:lvlFor(F.rms);
+    handle({type:'status',state:dev.state,level:lv,flags:6,silenced:false,ok1:true,ok2:true,rawMode:false,passMask:curPass,evalMask:curEval,
+      rms:F.rms,peak:F.peak,crest:F.crest,freq:F.freq,freqQ:F.freqQ,periodicity:F.periodicity,decay:F.decay,
+      baseRms:F.baseRms,basePeak:F.basePeak,dur:dev.state>=2?dev.cand:0});
+  }
+  function emitEvent(acc){
+    const e=dev.ev, freq=e.fn?e.fsum/e.fn:e.fmax, pga=e.pga>0?e.pga:e.peak;
+    const w=PI2*Math.max(freq,0.2), cms2=pga*980.665;
+    handle({type:'event',id:e.id,verdict:acc,accepted:!!acc,passMask:e.pass,evalMask:e.eval,level:e.level,dur:e.dur,peak:e.peak,rms:e.rms,
+      freq,crest:e.crest,periodicity:e.per,decay:e.decay,baseRatio:e.br,pga,mmi:Math.max(1,Math.min(10,cms2>0.01?3.66*Math.log10(cms2)-1.66:1)),
+      disp:pga*9.80665/(w*w)*1000,tStart:0});
+  }
+  function emitHealth(){
+    const sensors=[0,1].map(i=>({present:true,devFirst:0xE5,devLast:0xE5,selftest:1,stDelta:[0,0,0],odr:FS[i]*4,raw:S[i].n*4,
+      overruns:0,i2c:0,reinits:0,noiseMg:NOISE*1000,tiltDeg:1.5,zeroed:true}));
+    handle({type:'health',uptimeMs:Math.round(performance.now()),dropped:0,heap:150000,vbat:0,sensors});
+  }
+  function emitParams(){
+    handle({type:'hello',proto:1,sensors:2,odr:800,decim:4,scale:SCALE,fw:'sim'});
+    handle({type:'params',n:P.length,values:P.slice()});
+  }
+  function tick(){
+    if(D.mode!=='sim') return;
+    const now=performance.now();
+    let tt=(now-start)/1000;
+    const behind=tt-Math.max(S[0].n/FS[0],S[1].n/FS[1]);
+    if(behind>1){start=now-(tt-behind)*1000-100;tt=(now-start)/1000;}   // tab was in the background: skip, do not replay
+    for(let s=0;s<2;s++){const target=Math.floor(tt*FS[s]);let m=0;while(S[s].n<target&&m<600){step(s);m++;}}
+  }
+  return {
+    start(){reset();start=performance.now();emitParams();timer=setInterval(tick,20);},
+    stop(){clearInterval(timer);timer=null;},
+    tick,
+    bump(){fireBump(S[0].n/FS[0]);}, quake(){fireQuake(S[0].n/FS[0]);},
+    toggleAuto(){auto=!auto;if(auto)phEnd=0;return auto;},
+    command(bytes){   // decode our own command frames, as the device would
+      const r=Proto.decodeBody(Proto.cobsDecode(bytes.subarray(0,bytes.length-1)));
+      if(!r.ok) return;
+      const T=Proto.T, f=r;
+      switch(r.frame.ftype){
+        case T.SET_PARAM:{const dv=new DataView(r.frame.payload.buffer,r.frame.payload.byteOffset);const id=dv.getUint8(0);if(id<P.length)P[id]=dv.getFloat32(1,true);emitParams();break;}
+        case T.RESET_PARAMS:P=DEFAULTS.slice();emitParams();break;
+        case T.GET_PARAMS:emitParams();break;
+        case T.TEST_ALARM:fireQuake(S[0].n/FS[0]);break;
+        default:break;   // re-zero / silence: nothing to do in the simulator
+      }
+    }
+  };
+})();
+function startSim(){
+  stopRec(); resetData(); D.mode='sim'; D.parser=null; D.lastFrameMs=performance.now();
+  Sim.start(); updateSource(); srcMsg('Simulated device, two sensors at 207 and 197 Hz.');
+}
+function stopSim(){if(D.mode==='sim'){Sim.stop();stopRec();D.mode=null;updateSource();srcMsg('');}}
+$('bBump').onclick=()=>Sim.bump();
+$('bQuake').onclick=()=>Sim.quake();
+$('bAuto').onclick=()=>{const a=Sim.toggleAuto();$('bAuto').textContent='Auto: '+(a?'on':'off');$('bAuto').classList.toggle('on',a);};
+
+/* ================================================================ controls + main loop */
+function setView(v){
+  view=v; $('tTime').classList.toggle('on',v==='time'); $('tSpec').classList.toggle('on',v==='spec');
+  document.body.classList.toggle('spec',v==='spec');
+}
+$('tTime').onclick=()=>setView('time'); $('tSpec').onclick=()=>setView('spec');
+$('evBtn').onclick=()=>{
+  el.evBox.hidden=!el.evBox.hidden; $('evBtn').classList.toggle('on',!el.evBox.hidden);
+  if(!el.evBox.hidden) buildLog(); setTimeout(fit,0);
+};
+
+let lastUi=0,lastFft=0;
+function frame(now){
+  if(D.mode==='sim') Sim.tick();
+  if(now-lastFft>=500){lastFft=now;if(D.mode)updateSpectra();}
+  if(now-lastUi>=100){lastUi=now;ui();}
+  draw();
+  requestAnimationFrame(frame);
+}
+if(!hasSerial) srcMsg('Web Serial is not available in this browser. Use Chrome or Edge, opened from http://localhost, or try the simulator.');
+updateSource();
+ui();
+requestAnimationFrame(frame);
+window.__ed={D,stores,handle,Sim,startSim};   // handle for tests and the console
+})();
+</script>
+</body>
+</html>
