@@ -6,15 +6,16 @@
 #include "params.h"
 #include "sensor.h"
 
+// Producers queue unframed (type + payload). The comms task, the only consumer, stamps the
+// sequence number, CRC and COBS in send order, so sequence numbers on the wire never swap.
 struct TxFrame {
-  uint16_t len;
-  uint8_t data[300];
+  uint16_t len;  // type + payload
+  uint8_t data[1 + 280];
 };
 
 static QueueHandle_t s_txq = nullptr;
 static volatile uint32_t s_dropped = 0;
-static portMUX_TYPE s_seqMux = portMUX_INITIALIZER_UNLOCKED;
-static uint16_t s_seq = 0;
+static uint16_t s_seq = 0;  // touched only by commsTask
 
 uint32_t txDropped() { return s_dropped; }
 
@@ -70,20 +71,10 @@ void protocolInit() { s_txq = xQueueCreate(64, sizeof(TxFrame)); }
 
 bool sendFrame(uint8_t type, const uint8_t* payload, size_t len) {
   if (!s_txq || len > 280) return false;
-  uint8_t raw[288];
-  portENTER_CRITICAL(&s_seqMux);
-  uint16_t seq = s_seq++;
-  portEXIT_CRITICAL(&s_seqMux);
-  raw[0] = type;
-  raw[1] = seq & 0xFF;
-  raw[2] = seq >> 8;
-  memcpy(raw + 3, payload, len);
-  uint16_t crc = crc16(raw, len + 3);
-  raw[len + 3] = crc & 0xFF;
-  raw[len + 4] = crc >> 8;
   TxFrame f;
-  f.len = cobsEncode(raw, len + 5, f.data);
-  f.data[f.len++] = 0x00;
+  f.data[0] = type;
+  memcpy(f.data + 1, payload, len);
+  f.len = (uint16_t)(len + 1);
   if (xQueueSend(s_txq, &f, 0) != pdTRUE) {
     s_dropped++;
     return false;
@@ -177,6 +168,22 @@ static void handleCommand(const uint8_t* f, size_t n) {
   }
 }
 
+static void writeFrame(const TxFrame& f) {
+  static uint8_t raw[1 + 2 + 280 + 2], enc[300];
+  size_t plen = f.len - 1;
+  raw[0] = f.data[0];
+  raw[1] = s_seq & 0xFF;
+  raw[2] = s_seq >> 8;
+  s_seq++;
+  memcpy(raw + 3, f.data + 1, plen);
+  uint16_t crc = crc16(raw, plen + 3);
+  raw[plen + 3] = crc & 0xFF;
+  raw[plen + 4] = crc >> 8;
+  size_t n = cobsEncode(raw, plen + 5, enc);
+  enc[n++] = 0x00;
+  Serial.write(enc, n);
+}
+
 void commsTask(void*) {
   static TxFrame f;
   static uint8_t rx[300], dec[300];
@@ -184,9 +191,9 @@ void commsTask(void*) {
   bool rxOverflow = false;
   for (;;) {
     if (xQueueReceive(s_txq, &f, pdMS_TO_TICKS(5)) == pdTRUE) {
-      Serial.write(f.data, f.len);
+      writeFrame(f);
       // drain whatever else is queued without waiting
-      while (xQueueReceive(s_txq, &f, 0) == pdTRUE) Serial.write(f.data, f.len);
+      while (xQueueReceive(s_txq, &f, 0) == pdTRUE) writeFrame(f);
     }
     while (Serial.available()) {
       uint8_t b = Serial.read();
