@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unshakeable Earth - Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050912;--panel:#0b1322;--panel2:#101b31;--line:#1c2b4a;--txt:#e9eefc;--dim:#7f90b4;--dim2:#53638a;
+  --g:#2bdc6e;--y:#ffc61a;--r:#ff2b3d;--grey:#8493b3;
+  --x:#5ad1ff;--yy:#c59bff;--z:#ffb86b;--s1:#ff6fd8;--s2:#9db4ff;
+  --ui:'Rajdhani','Segoe UI',system-ui,sans-serif;--mono:'Share Tech Mono',Consolas,monospace;
+  --acc:var(--g);
+}
+*{box-sizing:border-box}
+html{font-size:min(calc(100vw/120),calc(100vh/67.5));background:#000;height:100%;display:grid;place-items:center;overflow:hidden}
+body{margin:0;width:120rem;height:67.5rem;background:radial-gradient(120rem 70rem at 50% -10%,#0d1a33 0,#050912 60%);color:var(--txt);font-family:var(--ui);position:relative;overflow:hidden;font-weight:600}
+.mono{font-family:var(--mono)}
+header{height:3.6rem;display:flex;align-items:center;gap:1.4rem;padding:0 0.9rem;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0e1830,#09101f)}
+.brand{font-size:1.5rem;letter-spacing:.18em;font-weight:700;white-space:nowrap}
+.brand b{color:var(--acc);transition:color .2s}
+.leds{display:flex;gap:.5rem;align-items:center;padding:.3rem .8rem;border:1px solid var(--line);border-radius:2rem;background:#070d19}
+.led{width:1.3rem;height:1.3rem;border-radius:50%;background:#1a2336;border:1px solid #2a3858;transition:all .1s}
+.led.g.on{background:var(--g);box-shadow:0 0 .9rem var(--g);border-color:var(--g)}
+.led.y.on{background:var(--y);box-shadow:0 0 .9rem var(--y);border-color:var(--y)}
+.led.r.on{background:var(--r);box-shadow:0 0 1.2rem var(--r);border-color:var(--r)}
+.leds small{font-size:.8rem;color:var(--dim);letter-spacing:.14em;margin-left:.3rem}
+.sp{flex:1}
+.badge{font-family:var(--mono);font-size:1rem;letter-spacing:.12em;border-radius:.3rem;padding:.25rem .7rem;border:1px solid}
+.badge.live{color:var(--dim2);border-color:#22304f}
+.badge.sim{color:#ffb020;border-color:#ffb020;background:rgba(255,176,32,.1)}
+.btn{font-family:var(--ui);font-weight:700;font-size:1.15rem;letter-spacing:.1em;color:var(--txt);background:#15223d;border:1px solid #2b3f6b;border-radius:.4rem;padding:.4rem 1.1rem;cursor:pointer;transition:all .12s}
+.btn:hover{background:#1d2f55;border-color:#4b6bb0}
+.btn:active{transform:translateY(1px)}
+.btn.bump{border-color:#8a96b4;color:#cfd7ea}
+.btn.quake{border-color:#ff5a68;color:#ffd5d9;background:#3a1119}
+.btn.quake:hover{background:#561823}
+.btn.tog.on{background:#0f3a24;border-color:var(--g);color:#bfffd8}
+.btn kbd{font-family:var(--mono);font-size:.8rem;opacity:.6;margin-left:.4rem}
+#autoInfo{font-family:var(--mono);font-size:.95rem;color:var(--dim);min-width:15rem}
+#clock{font-family:var(--mono);font-size:1.2rem;color:var(--dim)}
+main{position:absolute;top:3.6rem;left:0;right:0;bottom:0;padding:.7rem .8rem .7rem;display:grid;gap:.7rem;
+  grid-template-columns:27rem 1fr 32rem;grid-template-rows:11rem 12.5rem 1fr 9rem 2.4rem;
+  grid-template-areas:"ban ban gau" "bld tiles ver" "bld graphs log" "bld rib log" "strip strip strip"}
+.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:.6rem;position:relative;overflow:hidden;min-width:0;min-height:0}
+.ptitle{font-size:.95rem;letter-spacing:.16em;color:var(--dim);font-weight:700;display:flex;align-items:center;gap:.6rem;padding:.45rem .7rem 0}
+.ptitle .lg{display:inline-flex;gap:.7rem;margin-left:auto;font-family:var(--mono);letter-spacing:.05em;font-size:.9rem}
+.lg i{display:inline-block;width:.8rem;height:.8rem;border-radius:.15rem;margin-right:.25rem;vertical-align:-.05rem}
+/* ---------- banner ---------- */
+#banner{grid-area:ban;display:flex;align-items:center;gap:1.6rem;padding:0 1.6rem;border:2px solid var(--acc);transition:border-color .2s}
+#banner::before{content:"";position:absolute;inset:0;background:var(--bg1,linear-gradient(90deg,#0a2a1a,#0b1626));z-index:0}
+#banner>*{position:relative;z-index:1}
+.beacon{width:7.4rem;height:7.4rem;border-radius:50%;flex:none;background:var(--acc);box-shadow:0 0 2.5rem var(--acc),inset 0 0 1.6rem rgba(0,0,0,.35);position:relative;overflow:hidden;border:.35rem solid rgba(255,255,255,.18)}
+.beacon::after{content:"";position:absolute;inset:-20%;background:conic-gradient(from 0deg,rgba(255,255,255,.0),rgba(255,255,255,.85) 8%,rgba(255,255,255,0) 22%);opacity:0}
+.btxt{flex:1;min-width:0}
+#bTitle{font-size:4.4rem;line-height:1;font-weight:700;letter-spacing:.05em;white-space:nowrap;text-shadow:0 0 1.2rem rgba(0,0,0,.5)}
+#bSub{font-size:1.65rem;color:#dbe6ff;margin-top:.45rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+#bKick{font-size:1.3rem;letter-spacing:.16em;color:var(--acc);margin-top:.25rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bTimer{text-align:right;flex:none;min-width:11rem}
+#bTimer small{display:block;font-size:.95rem;letter-spacing:.2em;color:var(--dim)}
+#bTimer b{font-family:var(--mono);font-size:2.8rem;font-weight:400}
+.st-idle{--acc:var(--g);--bg1:linear-gradient(90deg,#0a2a1a,#0b1626 70%)}
+.st-idle.rej{--acc:#9fb0d2;--bg1:linear-gradient(90deg,#1c2536,#0b1626 70%)}
+.st-shake{--acc:var(--y);--bg1:linear-gradient(90deg,#3a2c05,#0b1626 75%)}
+.st-alarm{--acc:var(--r)}
+.st-shake .beacon{animation:blinkY .5s steps(2) infinite}
+@keyframes blinkY{50%{opacity:.25}}
+.st-alarm #banner::before{background:repeating-linear-gradient(-45deg,rgba(0,0,0,.32) 0 1.5rem,rgba(0,0,0,0) 1.5rem 3rem),#c8091c;animation:flashBg .5s steps(2) infinite,stripe 1s linear infinite;background-size:auto,auto}
+@keyframes flashBg{0%{filter:brightness(1.25)}50%{filter:brightness(.62)}}
+@keyframes stripe{to{background-position:4.24rem 0,0 0}}
+.st-alarm #bKick,.st-alarm #bTimer small{color:#fff}
+.st-alarm #bTitle{font-size:4.9rem;color:#fff;animation:shk .09s linear infinite}
+@keyframes shk{0%{transform:translate(.12rem,0)}50%{transform:translate(-.12rem,.06rem)}100%{transform:translate(.1rem,-.06rem)}}
+.st-alarm .beacon{background:#ff1830;box-shadow:0 0 3.5rem #ff1830,0 0 8rem rgba(255,24,48,.6)}
+.st-alarm .beacon::after{opacity:1;animation:spin .55s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:50;opacity:0;box-shadow:inset 0 0 0 .5rem var(--r),inset 0 0 14rem 2rem rgba(255,20,40,.55)}
+.st-alarm #fx{opacity:1;animation:vig .5s steps(2) infinite}
+@keyframes vig{0%{opacity:1}50%{opacity:.25}}
+.st-alarm .ptitle,.st-alarm .panel{border-color:#5a1620}
+/* ---------- gauge ---------- */
+#gaugeP{grid-area:gau;display:flex;align-items:center;padding:.3rem .8rem}
+#gaugeP svg{width:19rem;height:10.3rem;flex:none}
+.lvl{flex:1;text-align:center}
+.lvl small{font-size:.95rem;letter-spacing:.22em;color:var(--dim);display:block}
+.lvl b{font-size:6rem;line-height:.95;display:block;font-weight:700;transition:color .15s}
+.lvl span{font-size:1.4rem;letter-spacing:.16em;font-weight:700}
+/* ---------- building ---------- */
+#bldP{grid-area:bld;display:flex;flex-direction:column}
+#bldP svg{flex:1;min-height:0;width:100%}
+.bsvgt{font-family:var(--ui);font-weight:700;fill:var(--dim);letter-spacing:.12em}
+/* ---------- tiles ---------- */
+#tiles{grid-area:tiles;display:grid;grid-template-columns:1.55fr 1fr 1fr 1fr;gap:.7rem}
+.tile{display:flex;flex-direction:column;padding:.55rem .9rem .5rem}
+.tile .lab{font-size:1rem;letter-spacing:.2em;color:var(--dim);font-weight:700;display:flex;justify-content:space-between}
+.tile .lab em{font-style:normal;color:var(--dim2);letter-spacing:.1em;font-size:.85rem}
+.tile .val{font-size:6.4rem;line-height:.95;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;margin-top:.25rem}
+.tile .val small{font-size:1.9rem;color:var(--dim);margin-left:.4rem;letter-spacing:.05em}
+.tile.t2 .val{font-size:4.6rem;margin-top:.9rem}
+.tile .sub{font-family:var(--mono);font-size:1rem;color:var(--dim);margin-top:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qbar{height:.55rem;background:#0a1120;border-radius:1rem;overflow:hidden;margin-top:.5rem;border:1px solid #1c2b4a}
+.qbar i{display:block;height:100%;width:0;background:var(--g);transition:width .25s,background .2s}
+.dim{opacity:.45}
+/* ---------- graphs ---------- */
+#graphs{grid-area:graphs;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:.7rem;min-height:0}
+.gp{display:flex;flex-direction:column}
+.gp canvas{flex:1;min-height:0;width:100%;display:block}
+.seg{display:inline-flex;border:1px solid #2b3f6b;border-radius:.3rem;overflow:hidden}
+.seg button{font-family:var(--mono);font-size:.85rem;background:#0f1a30;color:var(--dim);border:0;padding:.1rem .6rem;cursor:pointer}
+.seg button.on{background:#25407a;color:#fff}
+/* ---------- verdict ---------- */
+#verdict{grid-area:ver;padding:.1rem .8rem .5rem;display:flex;flex-direction:column}
+.chk{display:grid;grid-template-columns:2.2rem 1fr auto;gap:0 .6rem;align-items:center;margin-top:.35rem}
+.chk .ico{width:2rem;height:2rem;border-radius:50%;display:grid;place-items:center;font-size:1.3rem;font-weight:700;background:#1a2540;color:var(--dim);grid-row:1/3}
+.chk .nm{font-size:1.05rem;letter-spacing:.08em;white-space:nowrap}
+.chk .nm i{font-style:normal;color:var(--dim);font-family:var(--mono);font-size:.85rem;margin-left:.3rem;letter-spacing:0}
+.chk .vv{font-family:var(--mono);font-size:1.25rem}
+.chk .bar{grid-column:2/4;height:.5rem;background:#0a1120;border-radius:1rem;position:relative;border:1px solid #1c2b4a}
+.chk .bar i.f{position:absolute;left:0;top:0;bottom:0;border-radius:1rem;background:var(--dim2);width:0}
+.chk .bar i.m{position:absolute;top:-.3rem;bottom:-.3rem;width:.2rem;background:#fff;opacity:.85}
+.chk.pass .ico{background:var(--g);color:#032010}.chk.pass .f{background:var(--g)}.chk.pass .vv{color:var(--g)}
+.chk.fail .ico{background:#4a2630;color:#ff8c99}.chk.fail .f{background:#b44}.chk.fail .vv{color:#ff9aa5}
+.chk.wait .ico{background:#3a3010;color:var(--y)}.chk.wait .f{background:var(--y)}.chk.wait .vv{color:var(--y)}
+#decision{margin-top:auto;text-align:center;font-size:1.25rem;letter-spacing:.1em;padding:.35rem .4rem;border-radius:.4rem;border:1px solid #2a3858;background:#0a1120;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#decision.acc{background:#4a0a13;border-color:var(--r);color:#fff}
+#decision.rej{background:#222c3f;border-color:#8493b3;color:#d4dcee}
+#decision.wait{background:#3a3010;border-color:var(--y);color:var(--y)}
+/* ---------- log ---------- */
+#log{grid-area:log;display:flex;flex-direction:column}
+.lh,.lr{display:grid;grid-template-columns:4.7rem 6.3rem 3.9rem 3.6rem 3.6rem 1fr;gap:.2rem;padding:0 .7rem;align-items:center}
+.lh{font-size:.8rem;letter-spacing:.12em;color:var(--dim2);margin-top:.3rem;padding-bottom:.2rem;border-bottom:1px solid var(--line)}
+#logbody{flex:1;overflow:hidden;padding-top:.2rem}
+.entry{padding:.25rem 0 .3rem;border-bottom:1px solid #15213b}
+.lr{font-family:var(--mono);font-size:1.05rem}
+.lr .c{font-family:var(--ui);font-weight:700;letter-spacing:.06em;font-size:1rem}
+.entry.quake .c{color:#ff5a68}.entry.bump .c{color:var(--grey)}
+.entry.quake{background:linear-gradient(90deg,rgba(255,43,61,.13),transparent)}
+.entry.live .c::after{content:" ●";animation:blinkY .5s steps(2) infinite}
+.why{font-size:.88rem;color:var(--dim);padding:0 .7rem;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry.bump .why{color:#9fb0d2}
+/* ---------- ribbon ---------- */
+#ribP{grid-area:rib;display:flex;flex-direction:column}
+#ribP canvas{flex:1;min-height:0;width:100%;display:block}
+/* ---------- strip ---------- */
+#strip{grid-area:strip;display:flex;align-items:center;gap:1.6rem;padding:0 1rem;font-family:var(--mono);font-size:1rem;color:var(--dim);white-space:nowrap;overflow:hidden}
+#strip b{color:var(--txt);font-weight:400}
+#strip .ok{color:var(--g)}
+#strip .sep{width:1px;height:1.2rem;background:var(--line)}
+#strip .simtag{margin-left:auto;color:#ffb020}
+</style>
+</head>
+<body>
+<div id="app" class="st-idle">
+<header>
+  <div class="brand">UNSHAKEABLE <b>EARTH</b> / COMMAND CENTER</div>
+  <div class="leds" title="Mirrors the physical LEDs"><span class="led g on" id="ledG"></span><span class="led y" id="ledY"></span><span class="led r" id="ledR"></span><small>LEDS</small></div>
+  <div class="sp"></div>
+  <div id="autoInfo">AUTO LOOP</div>
+  <span class="badge live" id="bLive">LIVE</span><span class="badge sim" id="bSim">SIM</span>
+  <button class="btn bump" id="btnBump">INJECT BUMP<kbd>B</kbd></button>
+  <button class="btn quake" id="btnQuake">INJECT EARTHQUAKE<kbd>Q</kbd></button>
+  <button class="btn tog on" id="btnAuto">AUTO<kbd>A</kbd></button>
+  <button class="btn tog" id="btnSnd">SOUND<kbd>S</kbd></button>
+  <div id="clock">00:00:00</div>
+</header>
+<main>
+  <section class="panel" id="banner">
+    <div class="beacon" id="beacon"></div>
+    <div class="btxt"><div id="bTitle">ALL CLEAR</div><div id="bSub"></div><div id="bKick"></div></div>
+    <div id="bTimer"><small id="bTimerL">ARMED</small><b id="bTimerV">--</b></div>
+  </section>
+
+  <section class="panel" id="gaugeP">
+    <svg id="gauge" viewBox="0 0 220 120"></svg>
+    <div class="lvl"><small>SEVERITY LEVEL</small><b id="lvlN">0</b><span id="lvlName">QUIET</span></div>
+  </section>
+
+  <section class="panel" id="bldP">
+    <div class="ptitle">LIVE STRUCTURE <span class="lg"><span><i style="background:var(--s1)"></i>S1</span><span><i style="background:var(--s2)"></i>S2</span></span></div>
+    <svg id="bsvg" viewBox="0 0 270 470" preserveAspectRatio="xMidYMid meet"></svg>
+  </section>
+
+  <section id="tiles">
+    <div class="panel tile" id="tF"><div class="lab">FREQUENCY<em id="fTag">--</em></div>
+      <div class="val"><span id="fVal">--.--</span><small>Hz</small></div>
+      <div class="qbar"><i id="fBar"></i></div>
+      <div class="sub" id="fSub">FFT peak - waiting</div></div>
+    <div class="panel tile t2" id="tP"><div class="lab">PEAK<em id="pTag">--</em></div>
+      <div class="val"><span id="pVal">0.00</span><small>g</small></div>
+      <div class="sub" id="pSub">gravity removed</div></div>
+    <div class="panel tile t2" id="tR"><div class="lab">RMS<em>LIVE S1</em></div>
+      <div class="val"><span id="rVal">0.000</span><small>g</small></div>
+      <div class="sub" id="rSub">0.5 s window</div></div>
+    <div class="panel tile t2" id="tA"><div class="lab">AMPLIFY<em id="aTag">TOP/BASE</em></div>
+      <div class="val"><small style="margin:0 .2rem 0 0">x</small><span id="aVal">--</span></div>
+      <div class="sub" id="aSub">S1 -- / S2 --</div></div>
+  </section>
+
+  <section id="graphs">
+    <div class="panel gp"><div class="ptitle"><span id="rawT">RAW ACCEL</span><span class="lg"><span><i style="background:var(--x)"></i>X</span><span><i style="background:var(--yy)"></i>Y</span><span><i style="background:var(--z)"></i>Z</span>
+      <span class="seg" id="selS"><button class="on" data-s="0">S1</button><button data-s="1">S2</button></span></span></div><canvas id="cvRaw"></canvas></div>
+    <div class="panel gp"><div class="ptitle"><span id="filtT">FILTERED</span><span class="lg"><span><i style="background:var(--x)"></i>X</span><span><i style="background:var(--yy)"></i>Y</span><span><i style="background:var(--z)"></i>Z</span></span></div><canvas id="cvFilt"></canvas></div>
+    <div class="panel gp"><div class="ptitle">RMS vs ALARM THRESHOLD<span class="lg"><span><i style="background:var(--s1)"></i>S1 TOP</span><span><i style="background:var(--s2)"></i>S2 BASE</span></span></div><canvas id="cvRms"></canvas></div>
+    <div class="panel gp"><div class="ptitle">SPECTRUM (FFT, 5 s)<span class="lg" id="fftLab">--</span></div><canvas id="cvFft"></canvas></div>
+  </section>
+
+  <section class="panel" id="verdict">
+    <div class="ptitle" style="padding-left:0">WHY? - BUMP OR EARTHQUAKE<span class="lg" id="vTag" style="font-size:.85rem">LOGIC</span></div>
+    <div class="chk" id="c1"><div class="ico">.</div><div class="nm">ENERGY<i>RMS &ge; 0.10 g</i></div><div class="vv" id="v1">--</div><div class="bar"><i class="f" id="b1"></i><i class="m" id="m1"></i></div></div>
+    <div class="chk" id="c2"><div class="ico">.</div><div class="nm">PERSISTENCE<i>&ge; 0.40 s</i></div><div class="vv" id="v2">--</div><div class="bar"><i class="f" id="b2"></i><i class="m" id="m2"></i></div></div>
+    <div class="chk" id="c3"><div class="ico">.</div><div class="nm">PERIODIC<i>&ge; 55% in 2.5-10 Hz</i></div><div class="vv" id="v3">--</div><div class="bar"><i class="f" id="b3"></i><i class="m" id="m3"></i></div></div>
+    <div id="decision">AWAITING EVENT</div>
+  </section>
+
+  <section class="panel" id="log">
+    <div class="ptitle">EVENT LOG<span class="lg" id="logCount">0 events</span></div>
+    <div class="lh"><span>TIME</span><span>CLASS</span><span>PEAK g</span><span>DUR</span><span>Hz</span><span>LVL</span></div>
+    <div id="logbody"></div>
+  </section>
+
+  <section class="panel" id="ribP">
+    <div class="ptitle">EVENT TIMELINE - LAST 60 s<span class="lg"><span><i style="background:#8493b3"></i>BUMP (rejected)</span><span><i style="background:var(--r)"></i>EARTHQUAKE</span><span><i style="background:var(--y)"></i>VERIFYING</span></span></div>
+    <canvas id="cvRib"></canvas>
+  </section>
+
+  <section class="panel" id="strip">
+    <span>S1 RATE <b id="q1">799.7 Hz</b></span><span>S2 RATE <b id="q2">800.1 Hz</b></span><span class="sep"></span>
+    <span>DROPPED <b class="ok" id="q3">0</b></span><span>FIFO OVR <b class="ok" id="q4">0</b></span><span class="sep"></span>
+    <span>LINK <b id="q5">USB SERIAL 921600</b> <b class="ok">OK</b></span><span>LATENCY <b id="q6">12 ms</b></span><span class="sep"></span>
+    <span>UI <b id="q7">60 fps</b></span><span>BUFFER <b>6.0 s</b></span>
+    <span class="simtag">SIMULATED STREAM - 200 Hz stand-in for 800 Hz ADXL345 FIFO</span>
+  </section>
+</main>
+<div id="fx"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const FS = 200, DT = 1 / FS, N = 1200, WIN = 100;
+const ON = 0.10, OFF = 0.06, SPIKE = 0.20, DWELL = 0.4, RATIO_MIN = 0.55, LATCH = 3;
+const LEVELB = [0, 0.10, 0.14, 0.19, 0.26, 0.35, 0.45];
+const LCOL = ['#4f6d96', '#2bdc6e', '#a6e22e', '#ffc61a', '#ff8a1f', '#ff2b3d'];
+const LNAME = ['QUIET', 'MINOR', 'LIGHT', 'MODERATE', 'STRONG', 'SEVERE'];
+const LCOPY = ['', 'TREMOR - STAY ALERT', 'LIGHT QUAKE - HOLD ON', 'STRONG SHAKING - TMD WORKING', 'DROP - COVER - HOLD ON', 'SEVERE - TMD AT ITS LIMIT'];
+const lvlOf = r => { let l = 0; for (let i = 1; i <= 5; i++) if (r >= LEVELB[i]) l = i; return l; };
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const gauss = () => { let u = 0; while (u === 0) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185307 * Math.random()); };
+
+/* ================= filters ================= */
+function biquad(type, fc, Q) {
+  const w = 2 * Math.PI * fc / FS, c = Math.cos(w), s = Math.sin(w), al = s / (2 * Q);
+  let b0, b1, b2;
+  if (type === 'lp') { b0 = (1 - c) / 2; b1 = 1 - c; b2 = b0; } else { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = b0; }
+  const a0 = 1 + al;
+  return { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: -2 * c / a0, a2: (1 - al) / a0, z1: 0, z2: 0 };
+}
+function bq(f, x) { const y = f.b0 * x + f.z1; f.z1 = f.b1 * x - f.a1 * y + f.z2; f.z2 = f.b2 * x - f.a2 * y; return y; }
+const Q = Math.SQRT1_2;
+const hp = [0, 1].map(() => [0, 1, 2].map(() => biquad('hp', 0.5, Q)));
+const lp = [0, 1].map(() => [0, 1, 2].map(() => biquad('lp', 20, Q)));
+const bph = [0, 1, 2].map(() => biquad('hp', 2.5, Q));
+const bpl = [0, 1, 2].map(() => biquad('lp', 10, Q));
+
+/* ================= buffers ================= */
+const rawR = [0, 1].map(() => [0, 1, 2].map(() => new Float32Array(N)));
+const filtR = [0, 1].map(() => [0, 1, 2].map(() => new Float32Array(N)));
+const rmsR = [new Float32Array(N), new Float32Array(N)];
+const stR = new Uint8Array(N);
+let head = 0, simN = 0;
+const RH = 600, rmsH = new Float32Array(RH), stH = new Uint8Array(RH); let rhHead = 0;
+const sq = [new Float64Array(WIN), new Float64Array(WIN)], sqB = new Float64Array(WIN);
+const sum = [0, 0]; let sumB = 0, wi = 0;
+const rms = [0, 0]; let ratio = 0;
+const fv = [[0, 0, 0], [0, 0, 0]]; const fm = [0, 0]; let hpMag1 = 0;
+
+/* ================= simulator ================= */
+const off = [[0.012, -0.008, 0.021], [-0.006, 0.014, -0.018]];
+let sources = [], quakeCount = 0;
+function addBump() { sources.push({ type: 'b', t0: simN * DT + 0.01, f: rnd(20, 30), A: rnd(0.35, 0.8), tau: rnd(0.07, 0.1) }); }
+function addQuake() {
+  const f = quakeCount === 0 ? 4.7 : (Math.random() < 0.4 ? 4.7 + rnd(-0.25, 0.25) : rnd(3, 8));
+  quakeCount++;
+  sources.push({ type: 'q', t0: simN * DT + 0.01, dur: 8, f, a1: rnd(0.30, 0.42), a2: rnd(0.14, 0.17), lag: 0.35, ph: rnd(0, 6.28) });
+}
+const raw = [[0, 0, 0], [0, 0, 0]];
+function gen(t) {
+  for (let s = 0; s < 2; s++) for (let a = 0; a < 3; a++) raw[s][a] = off[s][a] + gauss() * 0.004 + (a === 2 ? 1 : 0);
+  let done = false;
+  for (const e of sources) {
+    const tt = t - e.t0; if (tt < 0) continue;
+    if (e.type === 'b') {
+      if (tt > 0.8) { e.done = true; done = true; continue; }
+      const env = Math.exp(-tt / e.tau), w = 6.2831853 * e.f;
+      for (let s = 0; s < 2; s++) {
+        const k = s === 0 ? 1 : 0.16;
+        raw[s][0] += k * e.A * env * Math.sin(w * tt);
+        raw[s][1] += k * e.A * 0.35 * env * Math.sin(w * tt + 1.0);
+        raw[s][2] += k * e.A * 0.5 * env * Math.sin(w * tt + 2.1);
+      }
+    } else {
+      if (tt > e.dur) { e.done = true; done = true; continue; }
+      let u = Math.min(tt, e.dur - tt, 1); u = u < 0 ? 0 : u; const env = u * u * (3 - 2 * u), w = 6.2831853 * e.f;
+      for (let s = 0; s < 2; s++) {
+        const A = s === 0 ? e.a1 : e.a2, ph = s === 0 ? e.ph - e.lag : e.ph;
+        raw[s][0] += A * env * (Math.sin(w * tt + ph) + 0.12 * Math.sin(2 * w * tt + 2 * ph + 0.5));
+        raw[s][1] += 0.2 * A * env * Math.sin(w * tt + ph + 0.9);
+        raw[s][2] += 0.12 * A * env * Math.sin(w * tt + ph + 1.7);
+      }
+    }
+  }
+  if (done) sources = sources.filter(e => !e.done);
+}
+
+/* ================= TMD model (visual) ================= */
+const tmd = { q: 0, v: 0, w0: 6.2831853 * 4.7, z: 0.12, Kd: 9000 };
+
+/* ================= detection ================= */
+let state = 0, cand = null, simT = 0;
+let held = { kind: null, peak: 0, rms: 0, freq: null, conc: 0, level: 0, amp: null };
+const chk = { rms: 0, dwell: 0, ratio: 0, verdict: 'none', fails: [] };
+let toast = { until: 0, kind: '', title: '', sub: '', kick: '' };
+let events = [], logDirty = true, wallBase = Date.now() - 6000;
+const wall = t => wallBase + t * 1000;
+function startCand(t) {
+  state = 1;
+  cand = { t0: t, peak: 0, peakRms: 0, peakRms2: 0, ratioAtPeak: 0, dwell: 0, maxDwell: 0, lastAbove: t, alarmT0: 0, freq: null, conc: 0, zcN: 0, zcT0: 0, zcT1: 0, zcSign: 0, level: 0, ev: { kind: 'cand', t0: t, t1: null }, log: null };
+  events.push(cand.ev); if (events.length > 40) events.shift();
+}
+function goAlarm(t) {
+  const c = cand; state = 2; c.alarmT0 = t; c.ev.kind = 'quake';
+  chk.rms = rms[0]; chk.dwell = c.dwell; chk.ratio = ratio; chk.verdict = 'accepted';
+  c.log = { kind: 'quake', t: wall(c.t0), peak: c.peak, dur: 0, freq: fValid ? fLive : null, level: lvlOf(rms[0]), live: true, why: 'sustained + periodic: all 3 checks passed' };
+  logPush(c.log); toast.until = 0;
+}
+function endQuake(t) {
+  const c = cand, L = c.log; state = 0;
+  c.ev.t1 = t; c.ev.freq = c.freq; c.ev.level = lvlOf(c.peakRms);
+  L.live = false; L.dur = t - c.t0; L.peak = c.peak; L.freq = c.freq; L.level = lvlOf(c.peakRms);
+  L.why = 'accepted: ' + chk.dwell.toFixed(2) + ' s sustained, ' + Math.round(chk.ratio * 100) + '% periodic, RMS peak ' + c.peakRms.toFixed(3) + ' g';
+  chk.rms = c.peakRms; chk.dwell = c.maxDwell;
+  held = { kind: 'quake', peak: c.peak, rms: c.peakRms, freq: c.freq, conc: c.conc, level: L.level, amp: c.peakRms2 > 0.02 ? c.peakRms / c.peakRms2 : null };
+  toast = { until: performance.now() + 6000, kind: 'ok', title: 'ALL CLEAR - RE-ARMED', sub: 'Quake logged: ' + (c.freq ? c.freq.toFixed(1) + ' Hz' : '-- Hz') + ' - level ' + L.level + ' - peak ' + c.peak.toFixed(2) + ' g - ' + L.dur.toFixed(1) + ' s', kick: 'ALARM RELEASED' };
+  logDirty = true; cand = null;
+}
+function endBump(t) {
+  const c = cand; state = 0;
+  const durS = Math.max(0.05, c.lastAbove - c.t0);
+  let fz = null; if (c.zcN >= 4 && c.zcT1 > c.zcT0) fz = (c.zcN - 1) / (2 * (c.zcT1 - c.zcT0));
+  const fails = [];
+  if (c.peakRms < ON) fails.push('energy ' + c.peakRms.toFixed(3) + ' g < ' + ON.toFixed(2));
+  if (c.maxDwell < DWELL) fails.push('lasted ' + Math.round(c.maxDwell * 1000) + ' ms < 400');
+  if (c.ratioAtPeak < RATIO_MIN) fails.push('only ' + Math.round(c.ratioAtPeak * 100) + '% periodic');
+  if (!fails.length) fails.push('not periodic');
+  chk.rms = c.peakRms; chk.dwell = c.maxDwell; chk.ratio = c.ratioAtPeak; chk.verdict = 'rejected'; chk.fails = fails;
+  c.ev.kind = 'bump'; c.ev.t0 = c.t0; c.ev.t1 = c.lastAbove; c.ev.peak = c.peak;
+  const L = { kind: 'bump', t: wall(c.t0), peak: c.peak, dur: durS, freq: fz, level: 0, live: false, why: 'rejected: ' + fails.join(', ') };
+  logPush(L);
+  held = { kind: 'bump', peak: c.peak, rms: c.peakRms, freq: fz, conc: 0, level: 0, amp: null };
+  toast = { until: performance.now() + 6500, kind: 'rej', title: 'BUMP REJECTED - NO ALARM', sub: (fz ? Math.round(fz) + ' Hz' : '') + ' impulse - ' + c.peak.toFixed(2) + ' g peak - died out in ' + Math.round(durS * 1000) + ' ms', kick: fails.join('  /  ').toUpperCase() };
+  cand = null;
+}
+const logs = [];
+function logPush(L) { logs.unshift(L); if (logs.length > 30) logs.pop(); logDirty = true; }
+function detect(t) {
+  const r = rms[0];
+  if (state === 0 && (r > ON || hpMag1 > SPIKE)) startCand(t);
+  if (state === 0) return;
+  const c = cand;
+  if (hpMag1 > c.peak) c.peak = hpMag1;
+  if (r > c.peakRms) { c.peakRms = r; c.ratioAtPeak = ratio; }
+  if (rms[1] > c.peakRms2) c.peakRms2 = rms[1];
+  if (r > ON) { c.dwell += DT; if (c.dwell > c.maxDwell) c.maxDwell = c.dwell; } else c.dwell = 0;
+  if (hpMag1 > 0.05) c.lastAbove = t;
+  const x = fv[0][0], sg = x > 0.02 ? 1 : x < -0.02 ? -1 : 0;
+  if (sg !== 0 && sg !== c.zcSign) { if (c.zcSign !== 0) { if (c.zcN === 0) c.zcT0 = t; c.zcT1 = t; c.zcN++; } c.zcSign = sg; }
+  if (state === 1) {
+    if (c.dwell >= DWELL && ratio >= RATIO_MIN) goAlarm(t);
+    else if (r < OFF && t - c.t0 >= 0.8) endBump(t);
+  } else {
+    if (fValid) { c.freq = fLive; c.conc = fConc; }
+    c.level = Math.max(c.level, lvlOf(r));
+    if (c.log) { c.log.peak = c.peak; c.log.dur = t - c.t0; c.log.freq = c.freq; c.log.level = lvlOf(c.peakRms); }
+    if (t - c.alarmT0 >= LATCH && r < OFF) endQuake(t);
+  }
+}
+
+/* ================= per-sample step ================= */
+function step(doDetect) {
+  const t = simN * DT; simT = t; gen(t);
+  for (let s = 0; s < 2; s++) {
+    let m2 = 0;
+    for (let a = 0; a < 3; a++) {
+      const r = raw[s][a]; rawR[s][a][head] = r;
+      const h = bq(hp[s][a], r), f = bq(lp[s][a], h);
+      filtR[s][a][head] = f; fv[s][a] = f; m2 += f * f;
+      if (s === 0 && a === 0) hpMag1 = h * h; else if (s === 0) hpMag1 += h * h;
+    }
+    fm[s] = Math.sqrt(m2);
+    sum[s] += m2 - sq[s][wi]; sq[s][wi] = m2;
+    if (sum[s] < 0) sum[s] = 0;
+    rms[s] = Math.sqrt(sum[s] / WIN);
+    rmsR[s][head] = rms[s];
+  }
+  hpMag1 = Math.sqrt(hpMag1);
+  let b2 = 0;
+  for (let a = 0; a < 3; a++) { const b = bq(bpl[a], bq(bph[a], fv[0][a])); b2 += b * b; }
+  sumB += b2 - sqB[wi]; sqB[wi] = b2; if (sumB < 0) sumB = 0;
+  wi = (wi + 1) % WIN;
+  ratio = rms[0] > 0.01 ? Math.min(1, sumB / Math.max(sum[0], 1e-9)) : 0;
+  stR[head] = state;
+  /* TMD */
+  const ax = fv[0][0];
+  tmd.v += (-(tmd.w0 * tmd.w0) * tmd.q - 2 * tmd.z * tmd.w0 * tmd.v - tmd.Kd * ax) * DT;
+  tmd.q += tmd.v * DT; if (tmd.q > 24) { tmd.q = 24; tmd.v = 0; } if (tmd.q < -24) { tmd.q = -24; tmd.v = 0; }
+  head = (head + 1) % N; simN++;
+  if (simN % 20 === 0) { rmsH[rhHead] = rms[0]; stH[rhHead] = state; rhHead = (rhHead + 1) % RH; }
+  if (doDetect) detect(t);
+}
+
+/* ================= FFT ================= */
+const FN = 1024, cosT = new Float32Array(FN / 2), sinT = new Float32Array(FN / 2), rev = new Uint16Array(FN), hann = new Float32Array(FN);
+for (let i = 0; i < FN / 2; i++) { cosT[i] = Math.cos(6.283185307 * i / FN); sinT[i] = Math.sin(6.283185307 * i / FN); }
+for (let i = 0; i < FN; i++) { let r = 0, x = i; for (let b = 0; b < 10; b++) { r = (r << 1) | (x & 1); x >>= 1; } rev[i] = r; hann[i] = 0.5 * (1 - Math.cos(6.283185307 * i / (FN - 1))); }
+let hsum = 0; for (let i = 0; i < FN; i++) hsum += hann[i];
+const fre = new Float32Array(FN), fim = new Float32Array(FN), spec = new Float32Array(FN / 2);
+function fft() {
+  for (let i = 0; i < FN; i++) { const j = rev[i]; if (j > i) { let t = fre[i]; fre[i] = fre[j]; fre[j] = t; t = fim[i]; fim[i] = fim[j]; fim[j] = t; } }
+  for (let size = 2; size <= FN; size <<= 1) {
+    const half = size >> 1, stp = FN / size;
+    for (let i = 0; i < FN; i += size) for (let j = 0, k = 0; j < half; j++, k += stp) {
+      const a = i + j, b = a + half, wr = cosT[k], wim = -sinT[k];
+      const tr = fre[b] * wr - fim[b] * wim, ti = fre[b] * wim + fim[b] * wr;
+      fre[b] = fre[a] - tr; fim[b] = fim[a] - ti; fre[a] += tr; fim[a] += ti;
+    }
+  }
+}
+let fLive = 0, fValid = false, fConc = 0, fAmp = 0, fAxis = 0, fPeakK = 0, fYmax = 0.1;
+function doFFT() {
+  let best = 0, bv = -1;
+  for (let a = 0; a < 3; a++) { let m = 0, v = 0; for (let i = 0; i < FN; i += 4) { const x = filtR[0][a][(head - FN + i + N) % N]; m += x; v += x * x; } v = v / (FN / 4) - (m / (FN / 4)) ** 2; if (v > bv) { bv = v; best = a; } }
+  fAxis = best;
+  const R = filtR[0][best];
+  for (let i = 0; i < FN; i++) { fre[i] = R[(head - FN + i + N) % N] * hann[i]; fim[i] = 0; }
+  fft();
+  const sc = 2 / hsum; let tot = 0;
+  for (let k = 0; k < FN / 2; k++) { spec[k] = Math.sqrt(fre[k] * fre[k] + fim[k] * fim[k]) * sc; }
+  let pk = 5, pv = 0;
+  for (let k = 5; k <= 153; k++) { tot += spec[k] * spec[k]; if (spec[k] > pv) { pv = spec[k]; pk = k; } }
+  const a = spec[pk - 1], b = spec[pk], c = spec[pk + 1], den = a - 2 * b + c;
+  const d = den !== 0 ? clamp(0.5 * (a - c) / den, -0.5, 0.5) : 0;
+  fLive = (pk + d) * FS / FN; fPeakK = pk;
+  let cp = 0; for (let k = pk - 3; k <= pk + 3; k++) cp += spec[k] * spec[k];
+  fConc = tot > 0 ? cp / tot : 0; fAmp = pv;
+  fValid = pv >= 0.03 && fConc >= 0.3;
+}
+
+/* ================= scheduler ================= */
+let auto = true, autoT = 0, firedB = false, firedQ = false;
+function autoStep() {
+  if (!auto) return;
+  autoT += DT;
+  if (!firedB && autoT >= 6) { firedB = true; addBump(); }
+  if (!firedQ && autoT >= 11) { firedQ = true; addQuake(); }
+  if (autoT >= 25) { autoT = 0; firedB = firedQ = false; }
+}
+
+/* ================= preroll ================= */
+for (let i = 0; i < 1700; i++) step(false);
+doFFT(); state = 0;
+
+/* ================= canvas helpers ================= */
+let REM = 16;
+const dprOf = () => Math.min(window.devicePixelRatio || 1, 2);
+function mkc(id) { const c = $(id); return { c, g: c.getContext('2d'), w: 0, h: 0, u: 16 }; }
+function fit(o) { const d = dprOf(); REM = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16; const w = Math.round(o.c.clientWidth * d), h = Math.round(o.c.clientHeight * d); if (o.c.width !== w || o.c.height !== h) { o.c.width = w; o.c.height = h; } o.w = w; o.h = h; o.u = REM * d; return o; }
+const cvRaw = mkc('cvRaw'), cvFilt = mkc('cvFilt'), cvRms = mkc('cvRms'), cvFft = mkc('cvFft'), cvRib = mkc('cvRib');
+const MONO = '"Share Tech Mono",Consolas,monospace';
+let selS = 0;
+function plotArea(o, vmin, vmax, ticks, dec, timeGrid) {
+  const g = o.g, u = o.u, W = o.w, H = o.h;
+  g.clearRect(0, 0, W, H);
+  const x0 = 3.4 * u, y0 = 0.9 * u, w = W - x0 - 0.5 * u, h = H - y0 - 1.3 * u;
+  const Y = v => y0 + h * (1 - (v - vmin) / (vmax - vmin));
+  g.font = (0.8 * u) + 'px ' + MONO; g.textBaseline = 'middle'; g.textAlign = 'right';
+  g.strokeStyle = '#18253f'; g.lineWidth = 1; g.fillStyle = '#5b6c93';
+  g.beginPath();
+  for (const tk of ticks) { const y = Math.round(Y(tk)) + .5; g.moveTo(x0, y); g.lineTo(x0 + w, y); }
+  g.stroke();
+  for (const tk of ticks) g.fillText(tk.toFixed(dec), x0 - 0.4 * u, Y(tk));
+  if (timeGrid) {
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.beginPath();
+    for (let s = 0; s <= 6; s++) { const x = Math.round(x0 + w * s / 6) + .5; g.moveTo(x, y0); g.lineTo(x, y0 + h); }
+    g.stroke();
+    for (let s = 0; s <= 6; s += 2) g.fillText(s === 6 ? 'now' : '-' + (6 - s) + 's', x0 + w * s / 6, H - 0.25 * u);
+  }
+  return { x0, y0, w, h, Y };
+}
+function stateStrip(g, A, u) {
+  const hh = 0.45 * u; let runS = 0, runI = 0;
+  for (let i = 0; i <= N; i++) {
+    const s = i < N ? stR[(head + i) % N] : 255;
+    if (s !== runS) {
+      if (runS) { g.fillStyle = runS === 2 ? '#ff2b3d' : '#ffc61a'; const xa = A.x0 + A.w * runI / (N - 1), xb = A.x0 + A.w * i / (N - 1); g.globalAlpha = .9; g.fillRect(xa, A.y0 - hh, Math.max(xb - xa, 1), hh); g.globalAlpha = 1; }
+      runS = s === 255 ? 0 : s; runI = i;
+    }
+  }
+}
+function series(g, ring, A, vmin, vmax, color, lw) {
+  g.beginPath();
+  const k = A.w / (N - 1), sc = A.h / (vmax - vmin);
+  for (let i = 0; i < N; i++) { const v = ring[(head + i) % N]; const x = A.x0 + k * i, y = A.y0 + A.h - (v - vmin) * sc; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+  g.strokeStyle = color; g.lineWidth = lw; g.lineJoin = 'round'; g.stroke();
+}
+const AXC = ['#5ad1ff', '#c59bff', '#ffb86b'];
+function drawRaw() {
+  const o = fit(cvRaw), g = o.g, u = o.u;
+  const A = plotArea(o, -1, 1.6, [-1, -0.5, 0, 0.5, 1, 1.5], 1, true);
+  g.save(); g.beginPath(); g.rect(A.x0, A.y0 - u, A.w, A.h + u); g.clip();
+  for (let a = 2; a >= 0; a--) series(g, rawR[selS][a], A, -1, 1.6, AXC[a], 1.4 * (u / 16));
+  stateStrip(g, A, u); g.restore();
+  g.fillStyle = '#7f90b4'; g.textAlign = 'left'; g.font = (0.8 * u) + 'px ' + MONO; g.fillText('g, gravity included (Z = 1 g)', A.x0 + 0.5 * u, A.y0 + A.h - 0.6 * u);
+}
+function drawFilt() {
+  const o = fit(cvFilt), g = o.g, u = o.u;
+  const A = plotArea(o, -0.5, 0.5, [-0.4, -0.2, 0, 0.2, 0.4], 1, true);
+  g.save(); g.beginPath(); g.rect(A.x0, A.y0 - u, A.w, A.h + u); g.clip();
+  for (let a = 2; a >= 0; a--) series(g, filtR[selS][a], A, -0.5, 0.5, AXC[a], 1.5 * (u / 16));
+  stateStrip(g, A, u); g.restore();
+  g.fillStyle = '#7f90b4'; g.textAlign = 'left'; g.font = (0.8 * u) + 'px ' + MONO; g.fillText('g, band-passed 0.5-20 Hz, gravity removed', A.x0 + 0.5 * u, A.y0 + A.h - 0.6 * u);
+}
+let rmsMax = 0.4;
+function drawRms() {
+  const o = fit(cvRms), g = o.g, u = o.u;
+  const vmax = rmsMax;
+  const A = plotArea(o, 0, vmax, [0, 0.1, 0.2, 0.3, 0.4], 2, true);
+  g.save(); g.beginPath(); g.rect(A.x0, A.y0 - u, A.w, A.h + u); g.clip();
+  /* level bands */
+  for (let l = 1; l <= 5; l++) {
+    const ya = A.Y(LEVELB[l]), yb = A.Y(LEVELB[l + 1] > vmax ? vmax : LEVELB[l + 1]);
+    g.fillStyle = LCOL[l]; g.globalAlpha = 0.07; g.fillRect(A.x0, yb, A.w, ya - yb); g.globalAlpha = 1;
+  }
+  series(g, rmsR[1], A, 0, vmax, '#9db4ff', 1.6 * (u / 16));
+  g.beginPath(); const k = A.w / (N - 1);
+  for (let i = 0; i < N; i++) { const v = rmsR[0][(head + i) % N]; const x = A.x0 + k * i, y = A.Y(v); if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+  g.strokeStyle = '#ff6fd8'; g.lineWidth = 2.2 * (u / 16); g.stroke();
+  g.setLineDash([0.5 * u, 0.35 * u]); g.lineWidth = 1.6 * (u / 16);
+  g.strokeStyle = '#ffc61a'; g.beginPath(); g.moveTo(A.x0, A.Y(ON)); g.lineTo(A.x0 + A.w, A.Y(ON)); g.stroke();
+  g.strokeStyle = '#6f7d9c'; g.beginPath(); g.moveTo(A.x0, A.Y(OFF)); g.lineTo(A.x0 + A.w, A.Y(OFF)); g.stroke();
+  g.setLineDash([]); stateStrip(g, A, u); g.restore();
+  g.font = (0.8 * u) + 'px ' + MONO; g.textAlign = 'right'; g.textBaseline = 'bottom';
+  g.fillStyle = '#ffc61a'; g.fillText('ALARM ON ' + ON.toFixed(2) + ' g', A.x0 + A.w - 0.3 * u, A.Y(ON) - 0.15 * u);
+  g.fillStyle = '#7f90b4'; g.textBaseline = 'top'; g.fillText('release ' + OFF.toFixed(2), A.x0 + A.w - 0.3 * u, A.Y(OFF) + 0.15 * u);
+  g.textBaseline = 'middle';
+  for (let l = 1; l <= 5; l++) { const v = LEVELB[l]; if (v < vmax) { g.fillStyle = LCOL[l]; g.textAlign = 'left'; g.fillText('L' + l, A.x0 + 0.3 * u, A.Y(v) - 0.7 * u); } }
+}
+function drawFft() {
+  const o = fit(cvFft), g = o.g, u = o.u;
+  const fmax = 25, kmax = Math.floor(fmax * FN / FS);
+  let pm = 0; for (let k = 2; k <= kmax; k++) if (spec[k] > pm) pm = spec[k];
+  const target = Math.max(0.1, pm * 1.25); fYmax += (target - fYmax) * 0.2;
+  const A = plotArea(o, 0, fYmax, [0, fYmax / 2, fYmax], 2, false);
+  /* x axis */
+  const xf = f => A.x0 + A.w * f / fmax;
+  g.save(); g.beginPath(); g.rect(A.x0, A.y0 - u, A.w, A.h + u); g.clip();
+  g.fillStyle = 'rgba(43,220,110,.10)'; g.fillRect(xf(2.5), A.y0, xf(10.5) - xf(2.5), A.h);
+  g.strokeStyle = 'rgba(43,220,110,.45)'; g.lineWidth = 1; g.strokeRect(xf(2.5) + .5, A.y0 + .5, xf(10.5) - xf(2.5), A.h - 1);
+  g.beginPath(); g.moveTo(xf(0), A.y0 + A.h);
+  for (let k = 0; k <= kmax; k++) g.lineTo(xf(k * FS / FN), A.y0 + A.h * (1 - spec[k] / fYmax));
+  g.lineTo(xf(kmax * FS / FN), A.y0 + A.h); g.closePath();
+  const gr = g.createLinearGradient(0, A.y0, 0, A.y0 + A.h); gr.addColorStop(0, 'rgba(255,111,216,.55)'); gr.addColorStop(1, 'rgba(255,111,216,.05)');
+  g.fillStyle = gr; g.fill();
+  g.beginPath(); for (let k = 0; k <= kmax; k++) { const x = xf(k * FS / FN), y = A.y0 + A.h * (1 - spec[k] / fYmax); if (k) g.lineTo(x, y); else g.moveTo(x, y); }
+  g.strokeStyle = '#ff6fd8'; g.lineWidth = 1.6 * (u / 16); g.stroke();
+  if (fAmp >= 0.02) {
+    const px = xf(fLive); g.strokeStyle = '#fff'; g.setLineDash([0.3 * u, 0.3 * u]); g.beginPath(); g.moveTo(px, A.y0); g.lineTo(px, A.y0 + A.h); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#fff'; g.font = '700 ' + (1.15 * u) + 'px ' + MONO; g.textBaseline = 'top'; g.textAlign = px > A.x0 + A.w * 0.7 ? 'right' : 'left';
+    g.fillText(fLive.toFixed(2) + ' Hz', px + (g.textAlign === 'left' ? 0.4 : -0.4) * u, A.y0 + 0.3 * u);
+  }
+  g.restore();
+  g.font = (0.8 * u) + 'px ' + MONO; g.textBaseline = 'alphabetic'; g.textAlign = 'center'; g.fillStyle = '#5b6c93';
+  for (let f = 0; f <= 25; f += 5) g.fillText(f + '', xf(f), o.h - 0.25 * u);
+  g.fillStyle = '#2bdc6e'; g.textBaseline = 'top'; g.textAlign = 'center'; g.fillText('QUAKE BAND 2.5-10 Hz', (xf(2.5) + xf(10.5)) / 2, A.y0 + A.h - 1.1 * u);
+  g.textAlign = 'right'; g.fillStyle = '#7f90b4'; g.fillText('g amp / Hz', A.x0 + A.w - 0.2 * u, A.y0 + A.h - 1.1 * u);
+}
+function drawRib() {
+  const o = fit(cvRib), g = o.g, u = o.u, W = o.w, H = o.h; g.clearRect(0, 0, W, H);
+  const x0 = 1 * u, w = W - 2 * u, yb = H - 1.3 * u, yt = 0.8 * u, span = 60, now = simT;
+  const X = t => x0 + w * (1 - (now - t) / span);
+  g.fillStyle = '#0a1120'; g.fillRect(x0, yt, w, yb - yt);
+  g.font = (0.8 * u) + 'px ' + MONO; g.fillStyle = '#5b6c93'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.strokeStyle = '#18253f';
+  g.beginPath(); for (let s = 0; s <= 6; s++) { const x = Math.round(x0 + w * s / 6) + .5; g.moveTo(x, yt); g.lineTo(x, yb); } g.stroke();
+  for (let s = 0; s <= 6; s += 1) g.fillText(s === 6 ? 'now' : '-' + (60 - s * 10) + 's', x0 + w * s / 6, H - 0.3 * u);
+  /* rms envelope */
+  const rh = yb - yt - 0.5 * u;
+  g.beginPath(); g.moveTo(x0, yb);
+  for (let i = 0; i < RH; i++) { const v = rmsH[(rhHead + i) % RH]; const x = x0 + w * (i / (RH - 1)) ; g.lineTo(x, yb - Math.min(v / 0.35, 1) * rh); }
+  g.lineTo(x0 + w, yb); g.closePath(); g.fillStyle = 'rgba(255,111,216,.16)'; g.fill();
+  g.beginPath(); for (let i = 0; i < RH; i++) { const v = rmsH[(rhHead + i) % RH]; const x = x0 + w * (i / (RH - 1)); const y = yb - Math.min(v / 0.35, 1) * rh; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+  g.strokeStyle = 'rgba(255,111,216,.65)'; g.lineWidth = 1.2; g.stroke();
+  g.save(); g.beginPath(); g.rect(x0, 0, w, H); g.clip();
+  for (const e of events) {
+    const t1 = e.t1 == null ? now : e.t1;
+    if (t1 < now - span - 1) continue;
+    if (e.kind === 'quake' || e.kind === 'cand') {
+      const xa = X(e.t0), xb = Math.max(X(t1), xa + 0.4 * u); const col = e.kind === 'quake' ? '#ff2b3d' : '#ffc61a';
+      g.fillStyle = col; g.globalAlpha = 0.9; g.fillRect(xa, yt + 0.2 * u, xb - xa, yb - yt - 0.2 * u); g.globalAlpha = 1;
+      g.fillStyle = e.kind === 'quake' ? '#fff' : '#201800'; g.textAlign = 'left'; g.textBaseline = 'top'; g.font = '700 ' + (1.0 * u) + 'px ' + MONO;
+      if (xb - xa > 4 * u) g.fillText(e.kind === 'quake' ? 'EARTHQUAKE' + (e.freq ? '  ' + e.freq.toFixed(1) + ' Hz' : '') + (e.level ? '  L' + e.level : '') : 'VERIFYING', xa + 0.4 * u, yt + 0.55 * u);
+    } else if (e.kind === 'bump') {
+      const x = X(e.t0); g.strokeStyle = '#8493b3'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, yt + 1.6 * u); g.lineTo(x, yb); g.stroke();
+      g.fillStyle = '#8493b3'; g.beginPath(); g.moveTo(x, yt + 0.4 * u); g.lineTo(x + 0.8 * u, yt + 1.3 * u); g.lineTo(x, yt + 2.2 * u); g.lineTo(x - 0.8 * u, yt + 1.3 * u); g.closePath(); g.fill();
+      g.fillStyle = '#c3cde4'; g.textAlign = 'left'; g.textBaseline = 'top'; g.font = (0.9 * u) + 'px ' + MONO; g.fillText('BUMP x rejected', x + 1.1 * u, yt + 0.8 * u);
+    }
+  }
+  g.restore();
+  g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(x0 + w, yt); g.lineTo(x0 + w, yb); g.stroke();
+}
+
+/* ================= building SVG ================= */
+const NS = 'http://www.w3.org/2000/svg';
+const bsvg = $('bsvg');
+bsvg.innerHTML = `
+<defs>
+ <linearGradient id="ply" x1="0" x2="1"><stop offset="0" stop-color="#d9b57d"/><stop offset="1" stop-color="#b98d55"/></linearGradient>
+ <linearGradient id="ply2" x1="0" x2="1"><stop offset="0" stop-color="#cfa86e"/><stop offset="1" stop-color="#a9803f"/></linearGradient>
+</defs>
+<rect x="0" y="446" width="270" height="24" fill="#070d19"/>
+<g id="motor"><rect x="60" y="452" width="150" height="14" rx="2" fill="#1b2744" stroke="#30426e"/><circle id="cam" cx="135" cy="459" r="5.4" fill="#25365e" stroke="#4d6aa8"/><line id="spoke" x1="135" y1="459" x2="135" y2="455" stroke="#8fb0ff" stroke-width="1.6"/>
+ <text x="215" y="462" class="bsvgt" font-size="9" fill="#53638a">12 V</text></g>
+<g id="tbl"><rect x="12" y="436" width="186" height="11" rx="1.5" fill="#2a3a60" stroke="#4d6aa8"/>
+ <text x="105" y="444.5" text-anchor="middle" class="bsvgt" font-size="7.5" fill="#8fa3d4">SHAKE TABLE</text></g>
+<polygon id="st1" fill="url(#ply)" fill-opacity=".92" stroke="#6b4f26" stroke-width="2.4" stroke-linejoin="round"/>
+<polygon id="st2" fill="url(#ply2)" fill-opacity=".92" stroke="#6b4f26" stroke-width="2.4" stroke-linejoin="round"/>
+<path id="br1" stroke="#6b4f26" stroke-width="1.6" fill="none" opacity=".55"/>
+<path id="br2" stroke="#6b4f26" stroke-width="1.6" fill="none" opacity=".55"/>
+<rect id="slB" x="38" y="425" width="134" height="11" rx="1.5" fill="#7a5a2c" stroke="#4e3818"/>
+<rect id="slF" x="38" y="323" width="134" height="10" rx="1.5" fill="#8a6733" stroke="#4e3818"/>
+<rect id="slR" x="38" y="214" width="134" height="10" rx="1.5" fill="#8a6733" stroke="#4e3818"/>
+<g id="tmdG"><rect x="56" y="186" width="5" height="28" fill="#44526f"/><rect x="149" y="186" width="5" height="28" fill="#44526f"/>
+ <path id="sprL" fill="none" stroke="#9fb4e6" stroke-width="1.6"/><path id="sprR" fill="none" stroke="#9fb4e6" stroke-width="1.6"/>
+ <rect id="mass" x="90" y="190" width="30" height="24" rx="2" fill="#5d6f99" stroke="#cfe0ff" stroke-width="1.4"/>
+ <text id="massT" x="105" y="205.5" text-anchor="middle" class="bsvgt" font-size="8.5" fill="#fff">TMD</text></g>
+<g id="s1dot"><rect x="-4.5" y="-4.5" width="9" height="9" rx="1.5" fill="#ff6fd8" stroke="#fff"/></g>
+<g id="s2dot"><rect x="-4.5" y="-4.5" width="9" height="9" rx="1.5" fill="#9db4ff" stroke="#fff"/></g>
+<polyline id="ld1" fill="none" stroke="#ff6fd8" stroke-width="1" stroke-dasharray="2 2"/><polyline id="ld2" fill="none" stroke="#9db4ff" stroke-width="1" stroke-dasharray="2 2"/>
+<g><rect x="206" y="150" width="62" height="40" rx="4" fill="#150d1c" stroke="#ff6fd8"/><text x="211" y="164" class="bsvgt" font-size="10" fill="#ff6fd8">S1 TOP</text><text id="chip1" x="211" y="183" font-family="Share Tech Mono,monospace" font-size="14" fill="#fff">0.000g</text></g>
+<g><rect x="206" y="392" width="62" height="40" rx="4" fill="#0d1226" stroke="#9db4ff"/><text x="211" y="406" class="bsvgt" font-size="10" fill="#9db4ff">S2 BASE</text><text id="chip2" x="211" y="425" font-family="Share Tech Mono,monospace" font-size="14" fill="#fff">0.000g</text></g>
+<g id="ampG"><line x1="14" y1="224" x2="14" y2="436" stroke="#53638a" stroke-width="1.2" stroke-dasharray="3 3"/><rect x="2" y="300" width="25" height="22" rx="3" fill="#0b1322" stroke="#53638a"/>
+ <text x="14.5" y="315" text-anchor="middle" id="ampT" font-family="Share Tech Mono,monospace" font-size="10" fill="#fff">x--</text></g>
+<g id="lines" stroke="#8fb0ff" stroke-width="1.8" opacity="0" stroke-linecap="round"><line x1="2" y1="436" x2="-6" y2="436"/><line x1="2" y1="441" x2="-8" y2="441"/></g>
+<text x="135" y="25" text-anchor="middle" class="bsvgt" font-size="13" id="bAlarmTxt" fill="#ff2b3d"></text>`;
+const el = id => $(id);
+const sp = (x1, x2, y, n, amp) => { let d = 'M' + x1 + ',' + y; const st = (x2 - x1) / (n * 2 + 2); d += ' L' + (x1 + st) + ',' + y; for (let i = 0; i < n * 2; i++) d += ' L' + (x1 + st * (i + 1.5)).toFixed(1) + ',' + (y + (i % 2 ? amp : -amp)); return d + ' L' + (x2 - st) + ',' + y + ' L' + x2 + ',' + y; };
+let bd = { b: 0, m: 0, r: 0 }, camA = 0, lastDraw = 0, lastAx = [0, 0], accAx = [0, 0], accN = 0;
+function drawBuilding(dtMs) {
+  /* mean of filtered x since last frame -> displacement (inverted accel) */
+  let dB = 0, dR = 0;
+  if (accN > 0) { dB = -accAx[1] / accN * 95; dR = -accAx[0] / accN * 95; accAx[0] = accAx[1] = 0; accN = 0; } else { dB = bd.b; dR = bd.r; }
+  dB = clamp(dB, -22, 22); dR = clamp(dR, -34, 34);
+  bd.b += (dB - bd.b) * 0.7; bd.r += (dR - bd.r) * 0.7; const dM = bd.b + (bd.r - bd.b) * 0.42; bd.m = dM;
+  const xl = 40, xr = 170, B = bd.b, M = bd.m, R = bd.r;
+  const P = (x, y) => x.toFixed(1) + ',' + y;
+  el('st1').setAttribute('points', [P(xl + B, 425), P(xr + B, 425), P(xr + M, 333), P(xl + M, 333)].join(' '));
+  el('st2').setAttribute('points', [P(xl + M, 323), P(xr + M, 323), P(xr + R, 224), P(xl + R, 224)].join(' '));
+  el('br1').setAttribute('d', 'M' + P(xl + B, 425) + ' L' + P(xr + M, 333) + ' M' + P(xr + B, 425) + ' L' + P(xl + M, 333));
+  el('br2').setAttribute('d', 'M' + P(xl + M, 323) + ' L' + P(xr + R, 224) + ' M' + P(xr + M, 323) + ' L' + P(xl + R, 224));
+  el('slB').setAttribute('transform', 'translate(' + B.toFixed(1) + ',0)');
+  el('slF').setAttribute('transform', 'translate(' + M.toFixed(1) + ',0)');
+  el('slR').setAttribute('transform', 'translate(' + R.toFixed(1) + ',0)');
+  el('tbl').setAttribute('transform', 'translate(' + B.toFixed(1) + ',0)');
+  const q = clamp(tmd.q, -22, 22);
+  el('tmdG').setAttribute('transform', 'translate(' + R.toFixed(1) + ',0)');
+  el('mass').setAttribute('x', 90 + q); el('massT').setAttribute('x', 105 + q);
+  el('sprL').setAttribute('d', sp(61, 90 + q, 200, 5, 4)); el('sprR').setAttribute('d', sp(120 + q, 149, 200, 5, 4));
+  const s1x = xr - 14 + R, s1y = 236, s2x = xl + 14 + B, s2y = 431;
+  el('s1dot').setAttribute('transform', 'translate(' + s1x.toFixed(1) + ',' + s1y + ')');
+  el('s2dot').setAttribute('transform', 'translate(' + s2x.toFixed(1) + ',' + s2y + ')');
+  el('ld1').setAttribute('points', (s1x + 5).toFixed(1) + ',' + s1y + ' 200,' + s1y + ' 206,175');
+  el('ld2').setAttribute('points', (s2x + 5).toFixed(1) + ',' + s2y + ' 200,' + s2y + ' 206,412');
+  const act = state !== 0 ? 1 : 0;
+  el('lines').setAttribute('opacity', act && Math.abs(B) > 3 ? 0.9 : 0);
+  /* motor cam: spin only when shaking */
+  const spinHz = state !== 0 && fValid ? fLive : 0.0; camA += spinHz * 6.2831853 * dtMs / 1000;
+  el('spoke').setAttribute('x2', (135 + 4 * Math.sin(camA)).toFixed(1)); el('spoke').setAttribute('y2', (459 - 4 * Math.cos(camA)).toFixed(1));
+  const stroke = state === 2 ? '#ff2b3d' : state === 1 ? '#ffc61a' : '#6b4f26';
+  el('st1').setAttribute('stroke', stroke); el('st2').setAttribute('stroke', stroke);
+  el('bAlarmTxt').textContent = state === 2 ? 'STRUCTURE UNDER LOAD' : '';
+  el('bsvg').style.filter = state === 2 ? 'drop-shadow(0 0 .8rem rgba(255,43,61,.65))' : 'none';
+}
+
+/* ================= gauge ================= */
+const gsvg = $('gauge'); const GCX = 110, GCY = 108, GRO = 100, GRI = 66;
+(function buildGauge() {
+  const pt = (r, deg) => [(GCX + r * Math.cos(deg * Math.PI / 180)).toFixed(2), (GCY + r * Math.sin(deg * Math.PI / 180)).toFixed(2)];
+  let h = '';
+  for (let i = 0; i < 6; i++) {
+    const a0 = 180 + 30 * i + 0.8, a1 = 180 + 30 * (i + 1) - 0.8;
+    const o0 = pt(GRO, a0), o1 = pt(GRO, a1), i1 = pt(GRI, a1), i0 = pt(GRI, a0);
+    h += `<path id="gs${i}" d="M${o0} A${GRO},${GRO} 0 0 1 ${o1} L${i1} A${GRI},${GRI} 0 0 0 ${i0} Z" fill="${LCOL[i]}" opacity=".16"/>`;
+    const m = pt((GRO + GRI) / 2, 180 + 30 * i + 15);
+    h += `<text x="${m[0]}" y="${(+m[1] + 5).toFixed(1)}" text-anchor="middle" font-family="Rajdhani" font-weight="700" font-size="15" fill="#fff" opacity=".85">${i}</text>`;
+  }
+  h += `<g id="needle"><polygon points="106,108 110,22 114,108" fill="#fff"/></g><circle cx="${GCX}" cy="${GCY}" r="9" fill="#e9eefc" stroke="#050912" stroke-width="3"/>`;
+  gsvg.innerHTML = h;
+})();
+let needleA = -90;
+function drawGauge(level) {
+  const r = rms[0]; let pos = 6;
+  for (let i = 0; i < 6; i++) if (r < LEVELB[i + 1]) { pos = i + (r - LEVELB[i]) / (LEVELB[i + 1] - LEVELB[i]); break; }
+  const tgt = -90 + 180 * clamp(pos / 6, 0, 1) + (state === 2 ? gauss() * 0.8 : 0);
+  needleA += (tgt - needleA) * 0.3;
+  el('needle').setAttribute('transform', 'rotate(' + needleA.toFixed(1) + ' ' + GCX + ' ' + GCY + ')');
+  for (let i = 0; i < 6; i++) { const lit = i === 0 || i <= level; const p = el('gs' + i); p.setAttribute('opacity', lit ? 1 : 0.16); p.style.filter = lit && i > 0 ? 'drop-shadow(0 0 5px ' + LCOL[i] + ')' : 'none'; }
+}
+
+/* ================= DOM updates ================= */
+let lastCls = '', lastLogN = -1, sndOn = false, ac = null, osc = null, og = null;
+function setText(id, v) { const e = el(id); if (e.textContent !== v) e.textContent = v; }
+const f2 = (v, d) => v.toFixed(d);
+function setChk(n, val, frac, mark, pass, wait, vtxt) {
+  const c = el('c' + n); const cls = 'chk ' + (wait ? 'wait' : pass ? 'pass' : 'fail'); if (c.className !== cls) c.className = cls;
+  el('ico'.length ? 'v' + n : 'v' + n).textContent = vtxt;
+  c.querySelector('.ico').textContent = wait ? '...' : pass ? '✓' : '✗';
+  el('b' + n).style.width = (clamp(frac, 0, 1) * 100).toFixed(0) + '%'; el('m' + n).style.left = (mark * 100).toFixed(0) + '%';
+}
+function uiSlow(nowMs) {
+  const app = $('app');
+  const toastOn = nowMs < toast.until && state === 0;
+  const cls = 'st-' + (state === 2 ? 'alarm' : state === 1 ? 'shake' : 'idle') + (toastOn && toast.kind === 'rej' ? ' rej' : '');
+  if (cls !== lastCls) { app.className = cls; lastCls = cls; }
+  el('ledG').classList.toggle('on', state === 0);
+  const blinkY = Math.floor(nowMs / 250) % 2 === 0, blinkR = Math.floor(nowMs / 200) % 2 === 0;
+  el('ledY').classList.toggle('on', state === 1 && blinkY);
+  el('ledR').classList.toggle('on', state === 2 && blinkR);
+  /* banner */
+  const c = cand;
+  if (state === 2) {
+    const lv = lvlOf(c.peakRms);
+    setText('bTitle', 'EARTHQUAKE CONFIRMED');
+    setText('bSub', (fValid ? fLive.toFixed(1) : '--') + ' Hz  |  LEVEL ' + lv + ' ' + LNAME[lv] + '  |  S1 ' + c.peak.toFixed(2) + ' g  |  x' + (rms[1] > 0.02 ? (rms[0] / rms[1]).toFixed(1) : '--') + ' amp.');
+    setText('bKick', '⚠ ' + LCOPY[Math.max(lv, 1)] + ' ⚠');
+    setText('bTimerL', 'DURATION'); setText('bTimerV', f2(simT - c.t0, 1) + ' s');
+  } else if (state === 1) {
+    setText('bTitle', 'VIBRATION DETECTED');
+    setText('bSub', 'Verifying... sustained ' + f2(Math.min(c.dwell, 9.9), 2) + ' / 0.40 s   periodic ' + Math.round(ratio * 100) + '% / 55%');
+    setText('bKick', 'BUMP OR EARTHQUAKE? CHECKING RHYTHM');
+    setText('bTimerL', 'CHECKING'); setText('bTimerV', f2(simT - c.t0, 1) + ' s');
+  } else if (toastOn) {
+    setText('bTitle', toast.title); setText('bSub', toast.sub); setText('bKick', toast.kick);
+    setText('bTimerL', 'ARMED'); setText('bTimerV', 'READY');
+  } else {
+    setText('bTitle', 'ALL CLEAR'); setText('bSub', 'Building steady - S1 top + S2 base armed - alarm needs sustained 2.5-10 Hz shaking');
+    setText('bKick', 'MONITORING 2 SENSORS'); setText('bTimerL', 'ARMED'); setText('bTimerV', 'READY');
+  }
+  /* tiles */
+  const active = state !== 0;
+  const lvl = state === 2 ? lvlOf(c.peakRms) : (active ? 0 : held.kind === 'quake' ? held.level : 0);
+  let fv_, fq, fsub, ftag;
+  if (active) { fv_ = fValid ? fLive : null; fq = fConc; ftag = 'LIVE'; }
+  else { fv_ = held.freq; fq = held.conc; ftag = held.kind ? 'HELD - ' + (held.kind === 'quake' ? 'QUAKE' : 'BUMP') : '--'; if (fValid && state === 0 && held.kind === 'quake') { fv_ = fLive; } }
+  setText('fVal', fv_ ? f2(fv_, 2) : '--.--'); setText('fTag', ftag);
+  const inBand = fv_ && fv_ >= 2.5 && fv_ <= 10.5;
+  el('fVal').style.color = fv_ ? (inBand ? '#fff' : '#9fb0d2') : '#53638a';
+  el('fBar').style.width = (fv_ ? clamp(fq, 0, 1) * 100 : 0) + '%'; el('fBar').style.background = fq >= 0.6 ? 'var(--g)' : fq >= 0.4 ? 'var(--y)' : '#c55';
+  fsub = fv_ ? (inBand ? 'IN QUAKE BAND' : 'OUT OF BAND - not a shake') + ' | LOCK ' + Math.round(fq * 100) + '% ' + (fq >= 0.6 ? 'HIGH' : fq >= 0.4 ? 'MED' : 'LOW') : 'FFT peak - waiting for signal';
+  setText('fSub', fsub);
+  const pk = active ? c.peak : held.peak;
+  setText('pVal', f2(pk, 2)); setText('pTag', active ? 'LIVE' : held.kind ? 'HELD' : '--');
+  setText('pSub', active ? 'S1, gravity removed' : held.kind ? 'last ' + held.kind + ' (S1)' : 'gravity removed');
+  setText('rVal', f2(rms[0], 3)); setText('rSub', 'S2 base ' + f2(rms[1], 3) + ' g');
+  const ampL = active && rms[1] > 0.03 ? rms[0] / rms[1] : null; const amp = active ? ampL : held.amp;
+  setText('aVal', amp ? f2(amp, 1) : '--'); setText('aTag', active ? 'LIVE' : amp ? 'HELD' : 'TOP/BASE');
+  setText('aSub', 'S1 ' + f2(rms[0], 2) + ' / S2 ' + f2(rms[1], 2) + ' g');
+  /* gauge level */
+  const glevel = state === 2 ? lvl : (state === 0 && held.kind === 'quake' ? held.level : 0);
+  setText('lvlN', glevel + ''); setText('lvlName', LNAME[glevel]);
+  el('lvlN').style.color = LCOL[glevel]; el('lvlName').style.color = LCOL[glevel];
+  uiSlow.glevel = glevel;
+  /* verdict */
+  const lv = state !== 0 ? { r: rms[0], d: c.dwell, p: ratio } : { r: chk.rms, d: chk.dwell, p: chk.ratio };
+  const hasData = state !== 0 || chk.verdict !== 'none';
+  if (!hasData) { for (let n = 1; n <= 3; n++) setChk(n, '--', 0, n === 1 ? ON / 0.3 : n === 2 ? 0.4 : RATIO_MIN, false, true, '--'); setChk(1, '', 0, ON / 0.3, false, true, '--'); }
+  else {
+    const pend = state === 1;
+    setChk(1, '', lv.r / 0.3, ON / 0.3, lv.r >= ON, pend && lv.r < ON, f2(lv.r, 3) + ' g');
+    setChk(2, '', Math.min(lv.d, 1) / 1, 0.4, lv.d >= DWELL, pend && lv.d < DWELL, f2(lv.d, 2) + ' s');
+    setChk(3, '', lv.p, RATIO_MIN, lv.p >= RATIO_MIN, pend && lv.p < RATIO_MIN, Math.round(lv.p * 100) + '%');
+  }
+  const D = el('decision'); let dt = 'AWAITING EVENT', dc = '';
+  if (state === 2) { dt = 'ALL 3 PASSED  >  EARTHQUAKE ACCEPTED'; dc = 'acc'; }
+  else if (state === 1) { dt = 'COLLECTING EVIDENCE...'; dc = 'wait'; }
+  else if (chk.verdict === 'rejected') { dt = 'BUMP REJECTED  -  ' + (chk.fails[chk.fails.length - 1] || '').toUpperCase(); dc = 'rej'; }
+  else if (chk.verdict === 'accepted') { dt = 'LAST EVENT: EARTHQUAKE ACCEPTED'; dc = 'acc'; }
+  if (D.textContent !== dt) D.textContent = dt; if (D.className !== dc) D.className = dc;
+  setText('vTag', state === 2 ? 'ALARM LATCHED' : state === 1 ? 'EVALUATING' : chk.verdict === 'none' ? 'ARMED' : 'LAST EVENT');
+  /* graph titles */
+  const sn = selS === 0 ? 'S1 TOP' : 'S2 BASE';
+  setText('rawT', 'RAW ACCEL - ' + sn); setText('filtT', 'FILTERED - ' + sn + ' - 0.5-20 Hz');
+  setText('fftLab', fValid ? 'PEAK ' + fLive.toFixed(2) + ' Hz | LOCK ' + Math.round(fConc * 100) + '%' : 'no dominant peak');
+  /* header */
+  setText('clock', new Date().toTimeString().slice(0, 8));
+  setText('autoInfo', auto ? (autoT < 6 ? 'AUTO - bump in ' + Math.ceil(6 - autoT) + ' s' : autoT < 11 ? 'AUTO - quake in ' + Math.ceil(11 - autoT) + ' s' : 'AUTO - cycle ' + Math.ceil(25 - autoT) + ' s left') : 'AUTO PAUSED');
+  /* log */
+  if (logs.some(l => l.live)) logDirty = true;
+  if (logDirty) {
+    logDirty = false; let h = '';
+    for (const L of logs.slice(0, 9)) {
+      const lv2 = L.kind === 'quake' ? 'L' + L.level : '--';
+      h += `<div class="entry ${L.kind}${L.live ? ' live' : ''}"><div class="lr"><span>${new Date(L.t).toTimeString().slice(0, 8)}</span><span class="c">${L.kind === 'quake' ? 'QUAKE' : 'BUMP x'}</span><span>${L.peak.toFixed(2)}</span><span>${L.kind === 'bump' ? Math.round(L.dur * 1000) + 'ms' : L.dur.toFixed(1) + 's'}</span><span>${L.freq ? (L.kind === 'bump' ? '~' : '') + L.freq.toFixed(1) : '--'}</span><span>${lv2}</span></div><div class="why">${L.why}</div></div>`;
+    }
+    el('logbody').innerHTML = h || '<div class="why" style="padding:1rem .7rem">No events yet - waiting for the first bump or shake...</div>';
+    setText('logCount', logs.length + ' events');
+  }
+  /* data quality */
+  setText('q1', f2(799.7 + gauss() * 0.15, 1) + ' Hz'); setText('q2', f2(800.0 + gauss() * 0.15, 1) + ' Hz'); setText('q6', Math.round(11 + Math.random() * 4) + ' ms');
+  setText('q7', Math.round(fps) + ' fps');
+  /* siren */
+  if (sndOn && state === 2) {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { sndOn = false; } }
+    if (ac && !osc) { osc = ac.createOscillator(); og = ac.createGain(); og.gain.value = 0.05; osc.type = 'square'; osc.connect(og); og.connect(ac.destination); osc.start(); }
+    if (osc) osc.frequency.value = Math.floor(nowMs / 250) % 2 ? 880 : 660;
+  } else if (osc) { try { osc.stop(); } catch (e) { } osc = null; }
+}
+
+/* ================= controls ================= */
+$('btnBump').onclick = addBump;
+$('btnQuake').onclick = addQuake;
+$('btnAuto').onclick = () => { auto = !auto; $('btnAuto').classList.toggle('on', auto); };
+$('btnSnd').onclick = () => { sndOn = !sndOn; $('btnSnd').classList.toggle('on', sndOn); if (sndOn && ac && ac.state === 'suspended') ac.resume(); };
+$('selS').onclick = e => { const b = e.target.closest('button'); if (!b) return; selS = +b.dataset.s; for (const x of $('selS').children) x.classList.toggle('on', x === b); };
+window.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === 'b') addBump(); else if (k === 'q') addQuake(); else if (k === 'a') $('btnAuto').click(); else if (k === 's') $('btnSnd').click(); });
+
+/* ================= main loop ================= */
+let tPrev = performance.now(), tLastDraw = 0, tLastSlow = 0, tLastFft = 0, fps = 60, fpsN = 0, fpsT = tPrev, targetN = simN;
+function frame(now) {
+  requestAnimationFrame(frame);
+  let want = Math.floor(simN + (now - tPrev) * FS / 1000); tPrev = now;
+  if (want - simN > 120) want = simN + 120;
+  while (simN < want) { step(true); autoStep(); accAx[0] += fv[0][0]; accAx[1] += fv[1][0]; accN++; }
+  if (now - tLastFft > 250) { doFFT(); tLastFft = now; }
+  fpsN++; if (now - fpsT > 1000) { fps = fpsN * 1000 / (now - fpsT); fpsN = 0; fpsT = now; }
+  if (now - tLastDraw < 28) return;
+  const dtMs = now - tLastDraw; tLastDraw = now;
+  if (now - tLastSlow > 90) { uiSlow(now); tLastSlow = now; }
+  drawBuilding(Math.min(dtMs, 100)); drawGauge(uiSlow.glevel || 0);
+  drawRaw(); drawFilt(); drawRms(); drawFft(); drawRib();
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Pipeline - Earth Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f3efe4; --card:#fffdf8; --ink:#1b2330; --mute:#667082; --line:#d9d3c3; --line2:#e9e4d6;
+  --green:#1fa35a; --yellow:#f0b400; --red:#e0312b;
+  --s1:#c2185b; --s2:#1565c0;
+  --x:#2f5fd0; --y:#8e5bd6; --z:#0d8a8a;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  --sans:'IBM Plex Sans',system-ui,Segoe UI,sans-serif;
+  --hand:'Caveat','Segoe Print',cursive;
+}
+*{box-sizing:border-box}
+html{font-size:clamp(10.5px,0.8333vw,16px)}
+body{margin:0;height:100vh;min-height:44rem;overflow:hidden;color:var(--ink);font:400 1rem/1.3 var(--sans);
+  background-color:var(--paper);
+  background-image:linear-gradient(rgba(70,90,130,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(70,90,130,.07) 1px,transparent 1px);
+  background-size:1.6rem 1.6rem}
+.app{height:100%;display:grid;grid-template-rows:3.2rem 9.4rem minmax(0,1fr) minmax(0,1.3fr) 1.9rem;gap:.55rem;padding:.55rem .75rem .5rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:.45rem;box-shadow:0 1px 0 rgba(0,0,0,.04),0 .25rem .8rem rgba(40,40,60,.05);min-width:0;min-height:0;position:relative}
+.lbl{font:600 .68rem/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--mute)}
+.mono{font-family:var(--mono)}
+
+/* alarm frame */
+#frame{position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;border:0 solid transparent}
+body.st-shaking #frame{opacity:1;border:.28rem solid var(--yellow);box-shadow:inset 0 0 3rem rgba(240,180,0,.28);animation:fpulse 1s ease-in-out infinite alternate}
+body.st-alarm #frame{opacity:1;border:.7rem solid var(--red);box-shadow:inset 0 0 8rem rgba(224,49,43,.5);animation:fblink .45s steps(1) infinite}
+@keyframes fpulse{from{opacity:.4}to{opacity:1}}
+@keyframes fblink{0%{opacity:1}50%{opacity:.25}}
+
+/* header */
+.top{display:flex;align-items:center;gap:1rem;padding:0 .9rem}
+.brand{display:flex;align-items:baseline;gap:.6rem;white-space:nowrap}
+.brand b{font:600 1.15rem var(--mono);letter-spacing:-.02em}
+.brand span{font:600 1.15rem var(--hand);color:var(--mute)}
+.badge{display:inline-flex;border:1px solid var(--line);border-radius:2rem;overflow:hidden;font:600 .72rem var(--mono)}
+.badge i{font-style:normal;padding:.28rem .7rem;color:var(--mute)}
+.badge i.on{background:#ffe7a8;color:#6b4a00}
+.badge i.off{text-decoration:line-through;opacity:.55}
+.sp{flex:1}
+.btn{font:600 .85rem var(--sans);border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:.4rem;padding:.4rem .85rem;cursor:pointer;display:inline-flex;gap:.45rem;align-items:center;transition:transform .08s}
+.btn:active{transform:translateY(1px)}
+.btn.bump{border-color:#a57800;background:#fff6d8}
+.btn.quake{border-color:#b3231e;background:#ffe9e7;color:#8c1713}
+.btn kbd{font:500 .65rem var(--mono);border:1px solid currentColor;border-radius:.2rem;padding:0 .25rem;opacity:.7}
+.btn.tog.on{background:var(--ink);color:#fff}
+.next{font:500 .78rem var(--mono);color:var(--mute);min-width:11rem;text-align:right}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.9fr repeat(5,1fr);gap:.55rem;min-height:0}
+.status{padding:.7rem .95rem;display:flex;align-items:center;gap:.9rem;overflow:hidden;transition:background .15s,color .15s,border-color .15s}
+.leds{display:flex;flex-direction:column;gap:.35rem;align-items:center}
+.ledrow{display:flex;gap:.4rem}
+.led{width:1.55rem;height:1.55rem;border-radius:50%;background:#dcd8cc;border:2px solid #b9b4a3}
+.led.g.on{background:var(--green);border-color:#0f7a40;box-shadow:0 0 .9rem var(--green)}
+.led.y.on{background:var(--yellow);border-color:#a37a00;box-shadow:0 0 .9rem var(--yellow)}
+.led.r.on{background:var(--red);border-color:#8e1a16;box-shadow:0 0 1rem var(--red)}
+.led.blink{animation:blink .5s steps(1) infinite}
+.led.fast{animation:blink .22s steps(1) infinite}
+@keyframes blink{50%{opacity:.18}}
+.leds small{font:500 .6rem var(--mono);color:var(--mute)}
+.stword{font:700 3.3rem/0.95 var(--mono);letter-spacing:-.04em}
+.stmsg{font:600 1rem/1.2 var(--sans);margin-top:.35rem}
+.stsub{font:500 .8rem/1.25 var(--mono);color:var(--mute);margin-top:.2rem}
+.buz{margin-left:auto;text-align:center;font:600 .6rem var(--mono);color:var(--mute)}
+.buz svg{width:2.2rem;height:2.2rem;display:block;margin:0 auto .15rem}
+body.st-alarm .buz svg{animation:shake .12s linear infinite}
+@keyframes shake{25%{transform:translateX(-2px) rotate(-4deg)}75%{transform:translateX(2px) rotate(4deg)}}
+.status.s-idle{background:#eaf7ef;border-color:#9ad3b1}
+.status.s-idle .stword{color:#12753f}
+.status.s-shaking{background:#fff6d6;border-color:#e8c24a}
+.status.s-shaking .stword{color:#8a6500;animation:blink 1s steps(1) infinite}
+.status.s-alarm{background:repeating-linear-gradient(-45deg,#d92b25 0 1.2rem,#b81e19 1.2rem 2.4rem);background-size:200% 200%;border-color:#7d0f0b;color:#fff;animation:stripes 1.2s linear infinite}
+.status.s-alarm .stword{color:#fff;text-shadow:0 .1rem 0 rgba(0,0,0,.3)}
+.status.s-alarm .stsub,.status.s-alarm .leds small,.status.s-alarm .buz{color:#ffd9d6}
+@keyframes stripes{to{background-position:3.4rem 0}}
+.tile{padding:.6rem .8rem;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}
+.tv{font:600 2.35rem/1 var(--mono);letter-spacing:-.04em;white-space:nowrap}
+.tv small{font:500 .9rem var(--mono);color:var(--mute);margin-left:.3rem;letter-spacing:0}
+.ts{font:500 .72rem/1.25 var(--mono);color:var(--mute)}
+.ts b{color:var(--ink);font-weight:600}
+.qbar{height:.3rem;background:var(--line2);border-radius:1rem;overflow:hidden;margin:.15rem 0}
+.qbar i{display:block;height:100%;width:0;background:var(--green);transition:width .2s,background .2s}
+.lvl{display:flex;gap:.2rem;margin:.2rem 0}
+.lvl i{flex:1;height:.55rem;background:var(--line2);border-radius:.15rem}
+.lvl i.on{background:var(--ink)}
+body.st-alarm .lvl i.on{background:var(--red)}
+.tile.hot{border-color:var(--red)}
+
+/* pipeline */
+.pipe{display:flex;flex-direction:column;gap:.3rem;min-height:0}
+.phead{display:flex;align-items:center;gap:.8rem;height:1.5rem}
+.phead h2{margin:0;font:600 .95rem var(--mono);letter-spacing:-.01em}
+.phead .note{font:600 1.05rem var(--hand);color:var(--mute)}
+.seg{display:inline-flex;border:1px solid var(--ink);border-radius:.35rem;overflow:hidden}
+.seg button{font:600 .72rem var(--mono);border:0;background:#fff;padding:.22rem .6rem;cursor:pointer;color:var(--ink)}
+.seg button.on{background:var(--ink);color:#fff}
+.legend{display:flex;gap:.7rem;font:500 .7rem var(--mono);color:var(--mute)}
+.legend i{display:inline-block;width:.8rem;height:.2rem;vertical-align:middle;margin-right:.25rem;border-radius:1px}
+.stages{display:grid;grid-template-columns:1fr 1fr 1fr 1.05fr 1.15fr;gap:1.3rem;flex:1;min-height:0}
+.stage{display:flex;flex-direction:column;padding:.45rem .55rem .4rem}
+.stage:not(:last-child)::after{content:"";position:absolute;right:-1.12rem;top:50%;width:.9rem;height:.9rem;margin-top:-.45rem;background:var(--ink);clip-path:polygon(0 15%,55% 15%,55% 0,100% 50%,55% 100%,55% 85%,0 85%)}
+.sh{display:flex;align-items:baseline;gap:.4rem;margin-bottom:.2rem;white-space:nowrap}
+.sn{font:700 .72rem var(--mono);background:var(--ink);color:#fff;border-radius:50%;width:1.2rem;height:1.2rem;display:inline-grid;place-items:center;flex:none}
+.sh b{font:600 .88rem var(--mono)}
+.sh i{font:500 .7rem var(--mono);color:var(--mute);font-style:normal;overflow:hidden;text-overflow:ellipsis}
+.cv{position:relative;flex:1;min-height:0}
+.cv canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.sf{font:500 .68rem/1.2 var(--mono);color:var(--mute);margin-top:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sf b{color:var(--ink);font-weight:600}
+/* state machine */
+.sm{display:flex;flex-direction:column;flex:1;min-height:0;justify-content:space-between;gap:.25rem}
+.nodes{display:flex;align-items:center;justify-content:space-between}
+.node{font:700 .8rem var(--mono);border:2px solid var(--line);border-radius:.5rem;padding:.45rem .5rem;text-align:center;background:#fff;color:var(--mute);transition:all .12s;min-width:4.1rem}
+.node.on{color:#fff;transform:scale(1.06)}
+.node.n0.on{background:var(--green);border-color:#0f7a40;box-shadow:0 0 .9rem rgba(31,163,90,.7)}
+.node.n1.on{background:var(--yellow);border-color:#a37a00;color:#3d2e00;box-shadow:0 0 .9rem rgba(240,180,0,.8)}
+.node.n2.on{background:var(--red);border-color:#8e1a16;box-shadow:0 0 1rem rgba(224,49,43,.8);animation:blink .45s steps(1) infinite}
+.arr{flex:1;text-align:center;font:500 .6rem/1.1 var(--mono);color:var(--mute);padding:0 .15rem}
+.arr:before{content:"";display:block;height:2px;background:var(--mute);margin:0 0 .15rem;position:relative}
+.arr.hot:before{background:var(--ink);height:3px}
+.arr.hot{color:var(--ink)}
+.gauge{font:500 .68rem var(--mono);color:var(--mute)}
+.gbar{height:.55rem;border-radius:.2rem;background:var(--line2);position:relative;overflow:hidden;margin-top:.12rem}
+.gbar i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--yellow)}
+.gbar.lat i{background:var(--red)}
+.why{font:500 .74rem/1.25 var(--sans);color:var(--ink);min-height:1.9rem}
+
+/* lower */
+.lower{display:grid;grid-template-columns:1.45fr 1.1fr .95fr .95fr;gap:.55rem;min-height:0}
+.panel{padding:.55rem .7rem;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem;white-space:nowrap}
+.ph h3{margin:0;font:600 .9rem var(--mono)}
+.ph .sp{flex:1}
+.ph .btn{padding:.15rem .5rem;font-size:.7rem}
+/* verdict */
+.vc{flex:1;display:grid;grid-template-columns:1.25fr 1fr;gap:.7rem;min-height:0}
+.checks{display:flex;flex-direction:column;gap:.4rem;min-height:0}
+.chk{display:grid;grid-template-columns:2.2rem 1fr auto;gap:.5rem;align-items:center;border:1px solid var(--line);border-radius:.4rem;padding:.35rem .5rem;background:#fff;flex:1;min-height:0}
+.mark{width:2.1rem;height:2.1rem;border-radius:50%;display:grid;place-items:center;font:700 1.2rem var(--mono);color:#fff;background:#b8b3a2}
+.chk.pass .mark{background:var(--green)}
+.chk.fail .mark{background:var(--red)}
+.chk.pass{border-color:#9ad3b1;background:#f3fbf6}
+.chk.fail{border-color:#eba8a4;background:#fff4f3}
+.chk.pend .mark{animation:blink 1s steps(1) infinite}
+.ct{font:600 .82rem var(--mono)}
+.cr{font:400 .72rem/1.2 var(--sans);color:var(--mute)}
+.cv2{font:600 1.15rem var(--mono);text-align:right;white-space:nowrap}
+.cv2 small{display:block;font:500 .66rem var(--mono);color:var(--mute)}
+.chk.fail .cv2{color:#b3231e}.chk.pass .cv2{color:#12753f}
+.vright{display:flex;flex-direction:column;gap:.4rem;min-height:0}
+.stamp{font:700 1.45rem/1.05 var(--mono);text-align:center;border:.2rem solid currentColor;border-radius:.5rem;padding:.5rem .4rem;transform:rotate(-3deg);letter-spacing:-.02em;color:var(--mute);margin:.15rem .3rem 0}
+.stamp small{display:block;font:600 .72rem var(--mono);letter-spacing:.08em;margin-top:.2rem}
+.stamp.q{color:var(--red);background:#fff1f0}
+.stamp.b{color:#a06b00;background:#fff8e1}
+.thumbwrap{position:relative;flex:1;min-height:3rem}
+.thumbwrap canvas{position:absolute;inset:0;width:100%;height:100%}
+.vreason{font:500 .78rem/1.25 var(--sans)}
+.vreason em{font:600 1.05rem var(--hand);font-style:normal;color:var(--mute)}
+/* compare */
+.cmpgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.4rem;margin-top:.35rem}
+.cmpgrid div{border:1px solid var(--line2);border-radius:.35rem;padding:.3rem .45rem;background:#fff}
+.cmpgrid .v{font:600 1.25rem/1.1 var(--mono)}
+.cmpgrid .v small{font:500 .65rem var(--mono);color:var(--mute)}
+.tmd{margin-top:.35rem;font:500 .76rem/1.25 var(--sans);border-left:.2rem solid var(--s2);padding-left:.5rem}
+.tmd input{width:3.2rem;font:500 .72rem var(--mono);border:1px solid var(--line);border-radius:.2rem;padding:0 .2rem}
+/* log */
+.logwrap{flex:1;overflow:auto;min-height:0}
+table{width:100%;border-collapse:collapse;font:500 .76rem var(--mono)}
+th{position:sticky;top:0;background:var(--card);font:600 .62rem var(--mono);color:var(--mute);text-align:right;padding:.15rem .25rem;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+th:first-child,th:nth-child(2),td:first-child,td:nth-child(2){text-align:left}
+td{text-align:right;padding:.28rem .25rem;border-bottom:1px dashed var(--line2);white-space:nowrap}
+tr.row{cursor:pointer}
+tr.row:hover{background:#f6f2e6}
+tr.row.sel{background:#eef3ff}
+.chip{font:700 .62rem var(--mono);padding:.12rem .35rem;border-radius:.25rem;color:#fff;margin-right:.25rem}
+.chip.q{background:var(--red)}
+.chip.b{background:#c58b00}
+.dots{display:inline-flex;gap:2px;vertical-align:middle}
+.dots i{width:.38rem;height:.38rem;border-radius:50%;background:var(--green)}
+.dots i.f{background:var(--red)}
+.cnt{font:500 .72rem var(--mono);color:var(--mute)}
+.empty{font:600 1.1rem var(--hand);color:var(--mute);padding:.5rem}
+
+/* data quality */
+.dq{display:flex;align-items:center;gap:1.1rem;padding:0 .8rem;font:500 .74rem var(--mono);color:var(--mute);white-space:nowrap;overflow:hidden}
+.dq b{color:var(--ink);font-weight:600}
+.dq .dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--green);margin-right:.3rem}
+.dq .warn{color:#b3231e}.dq .warn .dot{background:var(--red)}
+.dq .sep{width:1px;height:1rem;background:var(--line)}
+canvas{image-rendering:auto}
+</style>
+</head>
+<body class="st-idle">
+<div id="frame"></div>
+<div class="app">
+
+<header class="top card">
+  <div class="brand"><b>QUAKE/PIPELINE</b><span>how the detector decides</span></div>
+  <div class="badge" title="Data source"><i class="off">LIVE</i><i class="on" id="modeSim">SIM 200 Hz</i></div>
+  <div class="sp"></div>
+  <div class="next" id="nextInfo">next: -</div>
+  <button class="btn bump" id="btnBump">Inject BUMP <kbd>B</kbd></button>
+  <button class="btn quake" id="btnQuake">Inject EARTHQUAKE <kbd>E</kbd></button>
+  <button class="btn tog on" id="btnAuto">Auto loop: ON <kbd>A</kbd></button>
+  <div class="mono" id="clock" style="color:var(--mute);font-size:.78rem;min-width:5.5rem;text-align:right">t = 0.0 s</div>
+</header>
+
+<section class="hero">
+  <div class="card status s-idle" id="status">
+    <div class="leds">
+      <div class="ledrow"><span class="led g on" id="ledG"></span><span class="led y" id="ledY"></span><span class="led r" id="ledR"></span></div>
+      <small>LEDs match the model</small>
+    </div>
+    <div>
+      <div class="stword" id="stWord">IDLE</div>
+      <div class="stmsg" id="stMsg">All quiet - watching both floors</div>
+      <div class="stsub" id="stSub">armed - waiting for energy above 0.15 g RMS</div>
+    </div>
+    <div class="buz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="buzW1" d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/></svg><span id="buzTxt">BUZZER OFF</span></div>
+  </div>
+  <div class="card tile" id="tFreq">
+    <div class="lbl">Shake frequency</div>
+    <div class="tv"><span id="fVal">--</span><small>Hz</small></div>
+    <div><div class="qbar"><i id="fQ"></i></div><div class="ts" id="fSub">no dominant tone</div></div>
+  </div>
+  <div class="card tile">
+    <div class="lbl">Peak g (2 s)</div>
+    <div class="tv"><span id="pkVal">0.000</span><small>g</small></div>
+    <div class="ts">S1 top <b id="pk1">0.000</b> | S2 base <b id="pk2">0.000</b><br>last event <b id="pkHold">--</b></div>
+  </div>
+  <div class="card tile">
+    <div class="lbl">RMS g (0.5 s, filtered)</div>
+    <div class="tv"><span id="rmsVal">0.000</span><small>g</small></div>
+    <div class="ts">S1 top <b id="rms1">0.000</b> | S2 base <b id="rms2">0.000</b><br>last event <b id="rmsHold">--</b></div>
+  </div>
+  <div class="card tile" id="tMag">
+    <div class="lbl">Magnitude / severity</div>
+    <div class="tv"><span style="font-size:1.2rem;color:var(--mute);margin-right:.25rem">M</span><span id="magVal">0.0</span></div>
+    <div><div class="lvl" id="lvl"><i></i><i></i><i></i><i></i><i></i></div><div class="ts">level <b id="lvlN">0</b> / 5 - <span id="lvlName">quiet</span></div></div>
+  </div>
+  <div class="card tile">
+    <div class="lbl">Amplification top / base</div>
+    <div class="tv"><span id="ampVal">--</span><small>x</small></div>
+    <div class="ts" id="ampSub">S1 / S2 filtered RMS</div>
+  </div>
+</section>
+
+<section class="pipe">
+  <div class="phead">
+    <h2>SIGNAL PIPELINE</h2>
+    <span class="note">raw samples in, verdict out</span>
+    <div class="seg" id="sensSeg"><button class="on" data-s="0">S1 top floor</button><button data-s="1">S2 base</button></div>
+    <div class="legend"><span><i style="background:var(--x)"></i>X</span><span><i style="background:var(--y)"></i>Y</span><span><i style="background:var(--z)"></i>Z</span><span id="detNote" style="margin-left:.4rem">detector input: S1</span></div>
+    <div class="sp"></div>
+    <div class="legend"><span>window 4 s</span><span>fs 200 Hz sim (800 Hz on device)</span></div>
+  </div>
+  <div class="stages">
+    <div class="card stage"><div class="sh"><span class="sn">1</span><b>RAW</b><i>ADXL345, g</i></div><div class="cv"><canvas id="cv1"></canvas></div><div class="sf" id="sf1"></div></div>
+    <div class="card stage"><div class="sh"><span class="sn">2</span><b>CALIBRATED</b><i>offset removed</i></div><div class="cv"><canvas id="cv2"></canvas></div><div class="sf" id="sf2"></div></div>
+    <div class="card stage"><div class="sh"><span class="sn">3</span><b>BAND-PASS</b><i>0.5 - 20 Hz</i></div><div class="cv"><canvas id="cv3"></canvas></div><div class="sf" id="sf3"></div></div>
+    <div class="card stage"><div class="sh"><span class="sn">4</span><b>RMS ENVELOPE</b><i>0.5 s window</i></div><div class="cv"><canvas id="cv4"></canvas></div><div class="sf" id="sf4"></div></div>
+    <div class="card stage"><div class="sh"><span class="sn">5</span><b>DETECTOR</b><i>state machine</i></div>
+      <div class="sm">
+        <div class="nodes">
+          <div class="node n0 on" id="n0">IDLE</div>
+          <div class="arr" id="a01">RMS&gt;0.15<br>or spike</div>
+          <div class="node n1" id="n1">SHAKING?</div>
+          <div class="arr" id="a12">held 0.4 s</div>
+          <div class="node n2" id="n2">ALARM</div>
+        </div>
+        <div class="arr" id="a10" style="text-align:left;padding:0;font-size:.62rem"><span id="a10t">fades below 0.07 g before 0.4 s = BUMP rejected, back to IDLE</span></div>
+        <div>
+          <div class="gauge">sustain timer <b id="dwT" style="color:var(--ink)">0.00</b> / 0.40 s</div>
+          <div class="gbar"><i id="dwB"></i></div>
+          <div class="gauge" style="margin-top:.2rem">alarm latch <b id="ltT" style="color:var(--ink)">--</b> / 3.0 s</div>
+          <div class="gbar lat"><i id="ltB"></i></div>
+        </div>
+        <div class="why" id="why">Waiting for motion.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="lower">
+  <div class="card panel" id="verdict">
+    <div class="ph"><h3>VERDICT CARD</h3><span class="cnt" id="vTitle">no event yet</span><span class="sp"></span><button class="btn" id="btnLive" style="display:none">back to live</button></div>
+    <div class="vc">
+      <div class="checks">
+        <div class="chk pend" id="c0"><div class="mark">?</div><div><div class="ct">1 DURATION</div><div class="cr">energy must stay above 0.15 g for at least 0.40 s</div></div><div class="cv2"><span id="c0v">--</span><small id="c0s">waiting</small></div></div>
+        <div class="chk pend" id="c1"><div class="mark">?</div><div><div class="ct">2 FREQUENCY</div><div class="cr">dominant tone must sit in the 3-10 Hz shake band</div></div><div class="cv2"><span id="c1v">--</span><small id="c1s">waiting</small></div></div>
+        <div class="chk pend" id="c2"><div class="mark">?</div><div><div class="ct">3 BASE COUPLING</div><div class="cr">base sensor S2 must move too (RMS 0.05 g+); top-only motion is an impact</div></div><div class="cv2"><span id="c2v">--</span><small id="c2s">waiting</small></div></div>
+      </div>
+      <div class="vright">
+        <div class="stamp" id="stamp">AWAITING<br>EVENT<small>press Inject</small></div>
+        <div class="thumbwrap"><canvas id="cvThumb"></canvas></div>
+        <div class="vreason" id="vReason"><em>Tip:</em> inject a bump, then an earthquake, and compare the two cards.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card panel">
+    <div class="ph"><h3>BASE vs TOP</h3><span class="cnt">filtered, dominant axis <b id="cmpAx">X</b></span><span class="sp"></span><span class="legend"><span><i style="background:var(--s1)"></i>S1 top</span><span><i style="background:var(--s2)"></i>S2 base</span></span></div>
+    <div class="cv" style="flex:1"><canvas id="cvCmp"></canvas></div>
+    <div class="cmpgrid">
+      <div><div class="lbl">ratio top/base</div><div class="v"><span id="cmpR">--</span><small> x</small></div></div>
+      <div><div class="lbl">S1 amp</div><div class="v"><span id="cmpA1">0.000</span><small> g</small></div></div>
+      <div><div class="lbl">S2 amp</div><div class="v"><span id="cmpA2">0.000</span><small> g</small></div></div>
+    </div>
+    <div class="tmd" id="tmd">TMD effect: waiting for a shake. Undamped reference ratio <input id="refR" type="number" step="0.1" min="1" value="4.0"> x</div>
+  </div>
+
+  <div class="card panel">
+    <div class="ph"><h3>SPECTRUM</h3><span class="cnt">FFT 5.1 s, Hann</span></div>
+    <div class="cv" style="flex:1"><canvas id="cvFft"></canvas></div>
+    <div class="ts" id="fftSub" style="margin-top:.3rem">S1 filtered, dominant axis - shaded: 3-10 Hz shake band</div>
+  </div>
+
+  <div class="card panel">
+    <div class="ph"><h3>EVENT LOG</h3><span class="sp"></span><span class="cnt" id="logCnt">0 quakes | 0 bumps rejected</span></div>
+    <div class="logwrap"><table><thead><tr><th>time</th><th>class</th><th>peak g</th><th>dur s</th><th>Hz</th></tr></thead><tbody id="logBody"></tbody></table><div class="empty" id="logEmpty">nothing logged yet</div></div>
+  </div>
+</section>
+
+<footer class="card dq" id="dq">
+  <span><span class="dot"></span>S1 rate <b id="dqR1">799.7</b> Hz</span>
+  <span><span class="dot"></span>S2 rate <b id="dqR2">800.1</b> Hz</span>
+  <span class="sep"></span>
+  <span id="dqDropW"><span class="dot"></span>dropped frames <b id="dqDrop">0</b></span>
+  <span><span class="dot"></span>FIFO overruns <b id="dqFifo">0</b></span>
+  <span class="sep"></span>
+  <span>link <b>USB serial 921600</b> (BLE standby)</span>
+  <span>latency <b id="dqLat">14</b> ms</span>
+  <span class="sep"></span>
+  <span>UI <b id="dqFps">60</b> fps</span>
+  <span class="sp"></span>
+  <span>telemetry simulated in this mockup</span>
+</footer>
+</div>
+
+<script id="core">
+/* ===================== CORE: simulator + DSP + detector (no DOM) ===================== */
+const Core=(function(){
+'use strict';
+const FS=200,DT=1/FS,RN=1024;
+const P={ON:0.15,OFF:0.07,SPIKE:0.15,CONFIRM:0.4,LATCH:3,WIN:100,BAND_LO:3,BAND_HI:10,BASE_MIN:0.05,HP:0.5,LP:20,MINCAND:0.5,LEVELS:[0.03,0.08,0.15,0.22,0.32]};
+
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let rnd=mulberry((Date.now()^0x5bd1e995)&0x7fffffff);
+function gauss(){const u=1-rnd(),v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(6.283185307*v);}
+
+function Ring(n){this.n=n;this.b=new Float32Array(n);this.w=0;}
+Ring.prototype.push=function(v){this.b[this.w]=v;this.w=(this.w+1)%this.n;};
+Ring.prototype.at=function(k){return this.b[(this.w-1-k+2*this.n)%this.n];};
+
+function bq(type,fc,fs,Q){const w=2*Math.PI*fc/fs,c=Math.cos(w),s=Math.sin(w),al=s/(2*Q);let b0,b1,b2;
+  if(type==='hp'){b0=(1+c)/2;b1=-(1+c);b2=(1+c)/2;}else{b0=(1-c)/2;b1=1-c;b2=(1-c)/2;}
+  const a0=1+al;return{b0:b0/a0,b1:b1/a0,b2:b2/a0,a1:-2*c/a0,a2:(1-al)/a0,z1:0,z2:0};}
+function bqRun(f,x){const y=f.b0*x+f.z1;f.z1=f.b1*x-f.a1*y+f.z2;f.z2=f.b2*x-f.a2*y;return y;}
+
+const OFF1=[0.012,-0.008,1.021],OFF2=[-0.015,0.006,1.018],NOISE=0.004;
+function mkSensor(off){
+  const s={base:off.slice(),f:[0,0,0],m:0,r:0,sumsq:0,sqi:0,sq:new Float64Array(P.WIN),raw:[],cal:[],fil:[],hp:[],lp:[],mag:new Ring(RN),rms:new Ring(RN)};
+  for(let i=0;i<3;i++){s.raw.push(new Ring(RN));s.cal.push(new Ring(RN));s.fil.push(new Ring(RN));s.hp.push(bq('hp',P.HP,FS,0.7071));s.lp.push(bq('lp',P.LP,FS,0.7071));}
+  return s;
+}
+const S=[mkSensor(OFF1),mkSensor(OFF2)];
+const stR=new Ring(RN);
+let t=0,warming=false;
+const det={state:0,dwell:0,ev:null,lastAbove:0,tEnter:0};
+const log=[];let idc=0;
+const hooks={onStart:null,onFinalize:null};
+
+/* ---------- simulator ---------- */
+const evs=[];let firstQuake=true;
+const WT=[1,0.25,0.1],PHs=[0,0.9,1.7];
+function addBump(){
+  const f=20+rnd()*10,A=0.3+rnd()*0.4;
+  let d=[(rnd()+0.5)*(rnd()<.5?-1:1),(rnd()*0.8)*(rnd()<.5?-1:1),rnd()*0.4*(rnd()<.5?-1:1)];
+  const n=Math.hypot(d[0],d[1],d[2]);d=d.map(v=>v/n);
+  evs.push({k:'bump',t0:t,f,A,tau:0.09,dir:d,len:0.9});
+}
+function addQuake(f){
+  for(const e of evs)if(e.k==='quake')return false;
+  if(!f){f=firstQuake?4.7:3+rnd()*5;}firstQuake=false;
+  evs.push({k:'quake',t0:t,f,A1:0.3+rnd()*0.1,A2:0.15,len:8,lag:0.35+rnd()*0.2});return true;
+}
+function simSample(a,b){
+  for(let i=0;i<3;i++){a[i]=OFF1[i]+gauss()*NOISE;b[i]=OFF2[i]+gauss()*NOISE;}
+  for(let k=evs.length-1;k>=0;k--){
+    const e=evs[k],tau=t-e.t0;
+    if(tau>e.len){evs.splice(k,1);continue;}
+    const w=6.283185307*e.f;
+    if(e.k==='bump'){
+      const d=Math.exp(-tau/e.tau),sn=Math.sin(w*tau);
+      for(let i=0;i<3;i++)a[i]+=e.A*d*sn*e.dir[i];
+      if(tau>0.004){const d2=Math.exp(-(tau-0.004)/e.tau),s2=Math.sin(w*(tau-0.004)+0.5);for(let i=0;i<3;i++)b[i]+=0.12*e.A*d2*s2*e.dir[i];}
+    }else{
+      const env=Math.max(0,Math.min(1,tau,e.len-tau)),am=1+0.04*Math.sin(2.3*tau);
+      for(let i=0;i<3;i++){
+        const ph=PHs[i],k1=WT[i]*env*am;
+        a[i]+=e.A1*k1*(Math.sin(w*tau-e.lag+ph)+0.08*Math.sin(2*w*tau-2*e.lag+ph+0.7));
+        b[i]+=e.A2*k1*(Math.sin(w*tau+ph)+0.08*Math.sin(2*w*tau+ph+0.7));
+      }
+    }
+  }
+}
+const SCH=[['quiet',6],['bump',0.6],['quiet',5],['quake',8],['quiet',6]];
+let ph=0,phT=0,auto=true;
+function sched(){
+  if(!auto)return;phT+=DT;
+  if(phT>=SCH[ph][1]){phT=0;ph=(ph+1)%SCH.length;const n=SCH[ph][0];if(n==='bump')addBump();else if(n==='quake')addQuake();}
+}
+function nextInfo(){
+  if(!auto)return null;
+  let rem=SCH[ph][1]-phT,j=(ph+1)%SCH.length,g=0;
+  while(SCH[j][0]==='quiet'&&g++<9){rem+=SCH[j][1];j=(j+1)%SCH.length;}
+  return{name:SCH[j][0],inSec:rem};
+}
+
+/* ---------- DSP per sensor ---------- */
+function proc(s,raw,alpha){
+  let q=0;
+  for(let i=0;i<3;i++){
+    s.raw[i].push(raw[i]);
+    const c=raw[i]-s.base[i];s.cal[i].push(c);
+    const y=bqRun(s.lp[i],bqRun(s.hp[i],c));s.f[i]=y;s.fil[i].push(y);q+=y*y;
+    if(alpha)s.base[i]+=(raw[i]-s.base[i])*alpha;
+  }
+  s.m=Math.sqrt(q);s.mag.push(s.m);
+  s.sumsq+=q-s.sq[s.sqi];s.sq[s.sqi]=q;s.sqi=(s.sqi+1)%P.WIN;
+  if(s.sumsq<0)s.sumsq=0;
+  s.r=Math.sqrt(s.sumsq/P.WIN);s.rms.push(s.r);
+}
+
+/* ---------- FFT ---------- */
+const fftC={};
+function fft(re,im){
+  const n=re.length;let c=fftC[n];
+  if(!c){const cs=new Float64Array(n/2),sn=new Float64Array(n/2),rev=new Uint16Array(n),bits=Math.round(Math.log2(n));
+    for(let i=0;i<n/2;i++){cs[i]=Math.cos(2*Math.PI*i/n);sn[i]=-Math.sin(2*Math.PI*i/n);}
+    for(let i=0;i<n;i++){let x=i,r=0;for(let b=0;b<bits;b++){r=(r<<1)|(x&1);x>>=1;}rev[i]=r;}
+    c=fftC[n]={cs,sn,rev};}
+  for(let i=0;i<n;i++){const j=c.rev[i];if(j>i){let a=re[i];re[i]=re[j];re[j]=a;a=im[i];im[i]=im[j];im[j]=a;}}
+  for(let size=2;size<=n;size<<=1){
+    const half=size>>1,step=n/size;
+    for(let i=0;i<n;i+=size){
+      for(let j=0,k=0;j<half;j++,k+=step){
+        const a=i+j,b=a+half,tr=re[b]*c.cs[k]-im[b]*c.sn[k],ti=re[b]*c.sn[k]+im[b]*c.cs[k];
+        re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti;
+      }
+    }
+  }
+}
+/* analyze(arr,len,M,out): Hann, zero-pad to M, amplitude spectrum, parabolic peak */
+function mkSpec(M){return{M,re:new Float64Array(M),im:new Float64Array(M),mags:new Float64Array(M/2),f:0,amp:0,conf:0,df:FS/M};}
+function analyze(arr,len,sp){
+  const M=sp.M,re=sp.re,im=sp.im;let sw=0;
+  for(let i=0;i<M;i++){if(i<len){const w=0.5-0.5*Math.cos(2*Math.PI*i/(len-1));re[i]=arr[i]*w;sw+=w;}else re[i]=0;im[i]=0;}
+  fft(re,im);
+  const h=M/2,sc=2/sw;let tot=0;
+  for(let k=0;k<h;k++){sp.mags[k]=Math.hypot(re[k],im[k])*sc;}
+  const kmin=Math.max(2,Math.ceil(1*M/FS)),kmax=Math.min(h-2,Math.floor(60*M/FS));
+  let pk=kmin;for(let k=kmin;k<=kmax;k++){const p=sp.mags[k]*sp.mags[k];tot+=p;if(sp.mags[k]>sp.mags[pk])pk=k;}
+  let d=0;const a=sp.mags[pk-1],b=sp.mags[pk],c=sp.mags[pk+1],den=a-2*b+c;
+  if(den<0)d=Math.max(-0.5,Math.min(0.5,0.5*(a-c)/den));
+  sp.f=(pk+d)*FS/M;sp.amp=b;
+  let near=0;for(let k=Math.max(kmin,pk-2);k<=Math.min(kmax,pk+2);k++)near+=sp.mags[k]*sp.mags[k];
+  sp.conf=tot>0?Math.min(1,near/tot):0;
+  return sp;
+}
+function snap(ring,len,out){for(let j=0;j<len;j++)out[j]=ring.b[(ring.w-len+j+RN*2)%RN];}
+const segSp=mkSpec(512),segBuf=new Float64Array(512),segTmp=new Float64Array(512);
+function evFreq(ev){
+  const len=Math.min(512,ev.n+16);if(len<24)return;
+  let best=0,bi=0;
+  for(let i=0;i<3;i++){snap(S[0].fil[i],len,segTmp);let e=0;for(let j=0;j<len;j++)e+=segTmp[j]*segTmp[j];if(e>best){best=e;bi=i;}}
+  snap(S[0].fil[bi],len,segBuf);analyze(segBuf,len,segSp);
+  return{f:segSp.f,conf:segSp.conf};
+}
+const mainSp=[mkSpec(1024),mkSpec(1024)],mainBuf=new Float64Array(1024),mainTmp=new Float64Array(1024);
+function mainSpec(si){
+  let best=-1,bi=0;
+  for(let i=0;i<3;i++){snap(S[si].fil[i],RN,mainTmp);let e=0;for(let j=0;j<RN;j++)e+=mainTmp[j]*mainTmp[j];if(e>best){best=e;bi=i;}}
+  snap(S[si].fil[bi],RN,mainBuf);const sp=analyze(mainBuf,RN,mainSp[si]);sp.axis=bi;return sp;
+}
+
+/* ---------- detector ---------- */
+function newEv(){return{t0:t,n:0,peak:0,peak2:0,rms1:0,rms2:0,lastAct:t,dwellMax:0,alarmed:false,closed:false,f:0,conf:0,mags:[],mags2:[]};}
+function checksFor(o,final){
+  const span=final?o.dur:(t-o.t0),dwell=o.dwell!==undefined?o.dwell:o.dwellMax;
+  const c1={st:o.alarmed?'pass':(final?'fail':'pend'),val:span,dwell};
+  let c2;if(!(o.f>0))c2={st:'pend',val:0,conf:0};else c2={st:(o.f>=P.BAND_LO&&o.f<=P.BAND_HI)?'pass':'fail',val:o.f,conf:o.conf};
+  const ratio=o.rms2>0.003?o.rms1/o.rms2:0;
+  const c3={st:o.rms2>=P.BASE_MIN?'pass':(final?'fail':'pend'),val:o.rms2,ratio};
+  return[c1,c2,c3];
+}
+function finalize(ev,alarmed){
+  ev.closed=true;const fr=evFreq(ev);if(fr&&(!ev.f||!alarmed)){ev.f=fr.f;ev.conf=fr.conf;}
+  const dur=alarmed?(t-ev.t0):Math.max(0.02,ev.lastAct-ev.t0+0.02);
+  const rec={id:++idc,clock:Date.now(),type:alarmed?'quake':'bump',alarmed,peak:ev.peak,peak2:ev.peak2,rms1:ev.rms1,rms2:ev.rms2,dur,dwell:ev.dwellMax,f:ev.f,conf:ev.conf,mags:ev.mags,mags2:ev.mags2,t0:ev.t0};
+  rec.checks=checksFor(rec,true);
+  log.unshift(rec);if(log.length>40)log.pop();
+  ev.rec=rec;if(hooks.onFinalize)hooks.onFinalize(rec);
+}
+function detect(){
+  const s1=S[0],s2=S[1],r=s1.r,m=s1.m;
+  if(det.state===0){
+    if(r>P.ON||m>P.SPIKE){det.state=1;det.tEnter=t;det.dwell=0;det.ev=newEv();if(hooks.onStart)hooks.onStart(det.ev);}
+    else return;
+  }
+  const ev=det.ev;
+  if(ev&&!ev.closed){
+    ev.n++;
+    if(m>ev.peak)ev.peak=m;if(s2.m>ev.peak2)ev.peak2=s2.m;
+    if(r>ev.rms1)ev.rms1=r;if(s2.r>ev.rms2)ev.rms2=s2.r;
+    if(m>0.05)ev.lastAct=t;
+    if(ev.mags.length<1800){ev.mags.push(m);ev.mags2.push(s2.m);}
+    if(ev.n%20===0){const fr=evFreq(ev);if(fr&&(!ev.f||r>=0.8*ev.rms1)){ev.f=fr.f;ev.conf=fr.conf;}}
+  }
+  if(r>P.ON)det.dwell+=DT;else if(r<P.OFF)det.dwell=0;
+  if(ev&&ev.dwellMax<det.dwell)ev.dwellMax=det.dwell;
+  if(r>=P.OFF)det.lastAbove=t;
+  if(det.state===1){
+    if(det.dwell>=P.CONFIRM){det.state=2;det.tEnter=t;ev.alarmed=true;ev.tAlarm=t;}
+    else if(t-ev.t0>=P.MINCAND&&r<P.OFF){finalize(ev,false);det.state=0;det.ev=null;det.dwell=0;}
+  }else if(det.state===2){
+    if(!ev.closed&&r<P.OFF)finalize(ev,true);
+    if(t-det.lastAbove>=P.LATCH){det.state=0;det.ev=null;det.dwell=0;}
+  }
+}
+const r1=[0,0,0],r2=[0,0,0];
+function step(){
+  sched();simSample(r1,r2);
+  const al=warming?0.02:(det.state===0?0.0008:0);
+  proc(S[0],r1,al);proc(S[1],r2,al);
+  detect();stR.push(det.state);t+=DT;
+}
+function warm(){
+  warming=true;const a=auto;auto=false;
+  for(let i=0;i<700;i++)step();
+  warming=false;auto=a;det.state=0;det.ev=null;det.dwell=0;det.lastAbove=t;evs.length=0;log.length=0;ph=0;phT=0;
+}
+function levelOf(r){let l=0;for(const th of P.LEVELS)if(r>=th)l++;return l;}
+function magOf(r){return Math.max(0,3*Math.log10(Math.max(r,1e-4)/0.005));}
+function trigger(k){if(k==='bump'){addBump();return true;}return addQuake();}
+
+return{FS,RN,P,S,stR,det,log,hooks,step,warm,trigger,nextInfo,levelOf,magOf,checksFor,mainSpec,
+  now:()=>t,get auto(){return auto;},set auto(v){auto=!!v;if(auto){ph=0;phT=0;}},snap};
+})();
+</script>
+
+<script>
+/* ===================== UI ===================== */
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const FS=Core.FS,RN=Core.RN,P=Core.P,S=Core.S;
+const AX=['#2f5fd0','#8e5bd6','#0d8a8a'],AXN=['X','Y','Z'];
+const C={ink:'#1b2330',mute:'#667082',grid:'#e8e3d4',zero:'#a9b0bd',green:'#1fa35a',yellow:'#f0b400',red:'#e0312b',s1:'#c2185b',s2:'#1565c0'};
+const SECS=4,NP=SECS*FS;
+let view=0,pinned=null,flash=null;
+Core.warm();
+
+/* ---------- canvas helpers ---------- */
+function prep(cv){
+  const dpr=Math.min(window.devicePixelRatio||1,2),w=cv.clientWidth,h=cv.clientHeight;
+  if(!w||!h)return null;
+  const W=Math.round(w*dpr),H=Math.round(h*dpr);
+  if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  return{g,w,h};
+}
+function grid(g,w,h,ymin,ymax,step,fmt){
+  g.font='9px IBM Plex Mono,monospace';g.textBaseline='bottom';g.lineWidth=1;
+  const k=h/(ymax-ymin);
+  for(let v=Math.ceil(ymin/step)*step;v<=ymax+1e-9;v+=step){
+    const y=Math.round(h-(v-ymin)*k)+.5;
+    g.strokeStyle=Math.abs(v)<1e-9?C.zero:C.grid;g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke();
+    g.fillStyle=C.mute;g.fillText(fmt(v),3,y-1);
+  }
+  g.strokeStyle=C.grid;
+  for(let s=1;s<SECS;s++){const x=Math.round(w*s/SECS)+.5;g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();}
+}
+function line(g,ring,w,h,ymin,ymax,color,lw){
+  const sx=w/(NP-1),k=h/(ymax-ymin),b=ring.b,w0=ring.w;
+  g.beginPath();
+  for(let j=0;j<NP;j++){let i=(w0-NP+j)%RN;if(i<0)i+=RN;const x=j*sx,y=h-(b[i]-ymin)*k;if(j)g.lineTo(x,y);else g.moveTo(x,y);}
+  g.strokeStyle=color;g.lineWidth=lw;g.lineJoin='round';g.stroke();
+}
+function maxAbs(rings){let m=0;for(const r of rings){const b=r.b,w0=r.w;for(let j=0;j<NP;j+=2){let i=(w0-NP+j)%RN;if(i<0)i+=RN;const v=Math.abs(b[i]);if(v>m)m=v;}}return m;}
+function niceStep(a){const c=[0.05,0.1,0.2,0.25,0.5,1];for(const s of c)if(a/s<=4)return s;return 1;}
+
+let amp=0.5,magMax=0.4,cmpAmp=0.2,fftMax=0.1;
+function fmtS(v){return(v>0?'+':'')+v.toFixed(Math.abs(v)<1&&Math.abs(v)>0?2:1);}
+
+function drawStages(){
+  const s=S[view];
+  // 1 raw
+  let p=prep($('cv1'));
+  if(p){grid(p.g,p.w,p.h,-1,1.6,0.5,v=>v.toFixed(1));for(let i=0;i<3;i++)line(p.g,s.raw[i],p.w,p.h,-1,1.6,AX[i],1.2);}
+  // shared amplitude for 2,3
+  const tgt=Math.max(0.5,maxAbs(s.cal)*1.15);amp+=(tgt-amp)*(tgt>amp?0.5:0.03);
+  const st=niceStep(amp);
+  p=prep($('cv2'));
+  if(p){grid(p.g,p.w,p.h,-amp,amp,st,fmtS);for(let i=0;i<3;i++)line(p.g,s.cal[i],p.w,p.h,-amp,amp,AX[i],1.2);}
+  p=prep($('cv3'));
+  if(p){grid(p.g,p.w,p.h,-amp,amp,st,fmtS);for(let i=0;i<3;i++)line(p.g,s.fil[i],p.w,p.h,-amp,amp,AX[i],1.3);}
+  // 4 rms
+  const tm=Math.max(0.4,maxAbs([s.mag])*1.15);magMax+=(tm-magMax)*(tm>magMax?0.5:0.03);
+  p=prep($('cv4'));
+  if(p){
+    const g=p.g,w=p.w,h=p.h,k=h/magMax,yOn=h-P.ON*k,yOff=h-P.OFF*k;
+    grid(g,w,h,0,magMax,0.1,v=>v.toFixed(1));
+    g.fillStyle='rgba(224,49,43,.08)';g.fillRect(0,0,w,yOn);
+    // state ribbon
+    const sx=w/(NP-1);let runS=-1,runX=0;
+    for(let j=0;j<=NP;j++){
+      let v=-2;if(j<NP){let i=(Core.stR.w-NP+j)%RN;if(i<0)i+=RN;v=Core.stR.b[i];}
+      if(v!==runS){if(runS>=0){g.fillStyle=[C.green,C.yellow,C.red][runS];g.globalAlpha=.9;g.fillRect(runX,h-5,j*sx-runX+1,5);g.globalAlpha=1;}runS=v;runX=j*sx;}
+    }
+    line(g,s.mag,w,h,0,magMax,'#9aa3b2',1);
+    // rms filled
+    const b=s.rms.b,w0=s.rms.w;g.beginPath();g.moveTo(0,h);
+    for(let j=0;j<NP;j++){let i=(w0-NP+j)%RN;if(i<0)i+=RN;g.lineTo(j*sx,h-b[i]*k);}
+    g.lineTo(w,h);g.closePath();g.fillStyle='rgba(27,35,48,.14)';g.fill();
+    line(g,s.rms,w,h,0,magMax,C.ink,2);
+    g.setLineDash([5,3]);g.lineWidth=1.5;
+    g.strokeStyle=C.red;g.beginPath();g.moveTo(0,yOn);g.lineTo(w,yOn);g.stroke();
+    g.strokeStyle=C.green;g.beginPath();g.moveTo(0,yOff);g.lineTo(w,yOff);g.stroke();g.setLineDash([]);
+    g.font='600 9px IBM Plex Mono,monospace';g.textBaseline='bottom';g.textAlign='right';
+    g.fillStyle=C.red;g.fillText('ON 0.15 g',w-3,yOn-2);g.fillStyle='#12753f';g.fillText('OFF 0.07 g',w-3,yOff-2);g.textAlign='left';
+  }
+  // footers
+  const a=i=>s.raw[i].at(0).toFixed(3),c=i=>s.cal[i].at(0).toFixed(3);
+  $('sf1').innerHTML='x <b>'+a(0)+'</b> y <b>'+a(1)+'</b> z <b>'+a(2)+'</b> g  (z = gravity)';
+  $('sf2').innerHTML='subtract baseline: z <b>'+s.base[2].toFixed(3)+'</b> x <b>'+s.base[0].toFixed(3)+'</b>';
+  $('sf3').innerHTML='|a| = sqrt(x2+y2+z2) = <b>'+s.m.toFixed(3)+'</b> g';
+  $('sf4').innerHTML='RMS <b>'+s.r.toFixed(3)+'</b> g'+(view?' (detector uses S1)':'')+' | bar: state';
+}
+
+/* ---------- compare ---------- */
+function domAxis(){let best=-1,bi=0;for(let i=0;i<3;i++){let e=0;const r=S[0].fil[i];for(let k=0;k<200;k++){const v=r.at(k);e+=v*v;}if(e>best){best=e;bi=i;}}return bi;}
+let dAx=0,dAxT=0;
+function drawCmp(){
+  const p=prep($('cvCmp'));if(!p)return;
+  if(performance.now()-dAxT>500){dAx=domAxis();dAxT=performance.now();$('cmpAx').textContent=AXN[dAx];}
+  const m=Math.max(0.2,maxAbs([S[0].fil[dAx],S[1].fil[dAx]])*1.15);cmpAmp+=(m-cmpAmp)*(m>cmpAmp?0.5:0.03);
+  grid(p.g,p.w,p.h,-cmpAmp,cmpAmp,niceStep(cmpAmp),fmtS);
+  line(p.g,S[1].fil[dAx],p.w,p.h,-cmpAmp,cmpAmp,C.s2,1.6);
+  line(p.g,S[0].fil[dAx],p.w,p.h,-cmpAmp,cmpAmp,C.s1,1.6);
+}
+
+/* ---------- spectrum ---------- */
+let spec=null,lastF=0;
+function drawFft(){
+  const p=prep($('cvFft'));if(!p||!spec)return;
+  const g=p.g,w=p.w,h=p.h,fmax=30,bins=Math.floor(fmax/spec.df),m=Math.max(0.1,spec.mags.slice(2,bins).reduce((a,b)=>Math.max(a,b),0)*1.25);
+  fftMax+=(m-fftMax)*(m>fftMax?0.5:0.05);
+  const X=f=>f/fmax*w,Y=v=>h-14-(v/fftMax)*(h-24);
+  g.fillStyle='rgba(31,163,90,.12)';g.fillRect(X(P.BAND_LO),0,X(P.BAND_HI)-X(P.BAND_LO),h-14);
+  g.font='9px IBM Plex Mono,monospace';g.textBaseline='bottom';g.fillStyle=C.mute;g.strokeStyle=C.grid;g.lineWidth=1;
+  for(let f=0;f<=30;f+=5){const x=Math.round(X(f))+.5;g.beginPath();g.moveTo(x,0);g.lineTo(x,h-14);g.stroke();g.fillText(f+(f===30?' Hz':''),Math.min(x+2,w-26),h-2);}
+  g.beginPath();g.moveTo(X(spec.df*2),Y(0));
+  for(let k=2;k<bins;k++)g.lineTo(X(k*spec.df),Y(spec.mags[k]));
+  g.lineTo(X(bins*spec.df),Y(0));g.closePath();g.fillStyle='rgba(194,24,91,.15)';g.fill();
+  g.beginPath();for(let k=2;k<bins;k++){const x=X(k*spec.df),y=Y(spec.mags[k]);if(k===2)g.moveTo(x,y);else g.lineTo(x,y);}
+  g.strokeStyle=C.s1;g.lineWidth=1.6;g.stroke();
+  // floor
+  g.setLineDash([4,3]);g.strokeStyle=C.mute;g.beginPath();g.moveTo(0,Y(0.02));g.lineTo(w,Y(0.02));g.stroke();g.setLineDash([]);
+  if(spec.amp>0.02&&spec.f<fmax){
+    const x=X(spec.f),y=Y(spec.amp);g.strokeStyle=C.ink;g.lineWidth=1;g.beginPath();g.moveTo(x,y);g.lineTo(x,h-14);g.stroke();
+    g.fillStyle=C.ink;g.beginPath();g.arc(x,y,3.5,0,6.3);g.fill();
+    g.font='600 11px IBM Plex Mono,monospace';g.textAlign=x>w-70?'right':'left';g.textBaseline='top';
+    g.fillText(spec.f.toFixed(2)+' Hz',x+(x>w-70?-6:6),Math.max(2,y-14));g.textAlign='left';
+  }
+}
+
+/* ---------- verdict ---------- */
+let vSig='',vView=null;
+function fmtT(ms){return new Date(ms).toTimeString().slice(0,8);}
+function setChk(i,c,state,valTxt,subTxt){
+  const el=$('c'+i);const cls='chk '+state;if(el.className!==cls)el.className=cls;
+  el.firstElementChild.textContent=state==='pass'?'✓':state==='fail'?'✗':'?';
+  $('c'+i+'v').textContent=valTxt;$('c'+i+'s').textContent=subTxt;
+}
+function currentView(){
+  const d=Core.det;
+  if(pinned!==null){const r=Core.log.find(x=>x.id===pinned);if(r)return{rec:r,final:true,ev:r};pinned=null;}
+  if(d.ev&&!d.ev.closed)return{ev:d.ev,final:false,live:true};
+  if(Core.log.length)return{rec:Core.log[0],final:true,ev:Core.log[0]};
+  return null;
+}
+function renderVerdict(){
+  const v=currentView();vView=v;
+  const live=v&&v.live,pin=pinned!==null;
+  $('btnLive').style.display=pin?'':'none';
+  if(!v){return;}
+  const o=v.ev,final=v.final;
+  const ch=Core.checksFor(o,final);
+  const passN=ch.filter(c=>c.st==='pass').length,failN=ch.filter(c=>c.st==='fail').length;
+  const alarmed=o.alarmed;
+  const tx=[
+    ch[0].st==='pend'?[ch[0].val.toFixed(2)+' s','so far, needs 0.40'] : ch[0].st==='pass'?[(final?o.dur:ch[0].val).toFixed(1)+' s','sustained >= 0.40'] : [ch[0].val.toFixed(2)+' s','burst < 0.40 s'],
+    ch[1].st==='pend'?['--','measuring'] : [ch[1].val.toFixed(1)+' Hz',ch[1].st==='pass'?'inside 3-10 Hz':'outside 3-10 Hz'],
+    ch[2].st==='pend'?[ch[2].val.toFixed(3)+' g','S2 so far'] : [ch[2].val.toFixed(3)+' g',ch[2].st==='pass'?(ch[2].ratio?'top/base '+ch[2].ratio.toFixed(1)+'x':'base moves'):'S2 quiet = top-only']
+  ];
+  for(let i=0;i<3;i++)setChk(i,ch[i],ch[i].st,tx[i][0],tx[i][1]);
+  const st=$('stamp');let cls='stamp',html;
+  if(alarmed){cls+=' q';html='CONFIRMED:<br>EARTHQUAKE<small>'+passN+' / 3 checks passed'+(final?'':' (live)')+'</small>';}
+  else if(final){cls+=' b';html='REJECTED:<br>BUMP<small>'+failN+' / 3 checks failed</small>';}
+  else{html='ANALYSING<br>EVENT<small>checks running</small>';}
+  if(st.className!==cls)st.className=cls;if(st.innerHTML!==html)st.innerHTML=html;
+  let why;
+  if(alarmed){
+    why='<em>Why alarm:</em> shaking stayed above 0.15 g for 0.4 s'+(ch[1].st==='pass'?', at '+ch[1].val.toFixed(1)+' Hz (a building-shaking frequency)':'')+(ch[2].st==='pass'?', and the base moved too'+(ch[2].ratio?' (top/base '+ch[2].ratio.toFixed(1)+'x)':''):'')+'.';}
+  else if(final){const parts=[];
+    if(ch[0].st==='fail')parts.push('it died out in '+ch[0].val.toFixed(2)+' s (needs 0.4 s)');
+    if(ch[1].st==='fail')parts.push(ch[1].val.toFixed(0)+' Hz is above the 3-10 Hz shake band');
+    if(ch[2].st==='fail')parts.push('the base barely moved, so only the top was hit');
+    why='<em>Why rejected:</em> '+parts.join('; ')+'.';}
+  else why='<em>Watching:</em> the sustain timer decides - if the burst fades first, it is a bump.';
+  if($('vReason').innerHTML!==why)$('vReason').innerHTML=why;
+  $('vTitle').textContent=(live?'live event':final?('event #'+o.id+' @ '+fmtT(o.clock)):'')+(pin?' (pinned)':'');
+}
+function drawThumb(){
+  const p=prep($('cvThumb'));if(!p||!vView)return;
+  const o=vView.ev,g=p.g,w=p.w,h=p.h;
+  const a=o.mags,b=o.mags2;if(!a||!a.length)return;
+  const n=a.length,total=Math.max(n,FS*1.2),cols=Math.min(Math.floor(w),160);
+  let mx=0.2;for(let i=0;i<n;i++)if(a[i]>mx)mx=a[i];
+  mx*=1.1;
+  const X=i=>i/total*w,Y=v=>h-12-(v/mx)*(h-20);
+  g.font='9px IBM Plex Mono,monospace';g.textBaseline='bottom';g.fillStyle=C.mute;
+  const draw=(arr,col,fill)=>{g.beginPath();g.moveTo(0,Y(0));
+    const step=Math.max(1,Math.floor(n/cols));
+    for(let i=0;i<n;i+=step){let m=0;for(let j=i;j<Math.min(n,i+step);j++)if(arr[j]>m)m=arr[j];g.lineTo(X(i),Y(m));}
+    g.lineTo(X(n),Y(0));g.closePath();g.fillStyle=fill;g.fill();g.strokeStyle=col;g.lineWidth=1.4;g.stroke();};
+  draw(a,C.s1,'rgba(194,24,91,.15)');draw(b,C.s2,'rgba(21,101,192,.18)');
+  const x4=X(FS*0.4);g.setLineDash([3,3]);g.strokeStyle=C.red;g.lineWidth=1.3;g.beginPath();g.moveTo(x4,2);g.lineTo(x4,h-12);g.stroke();g.setLineDash([]);
+  g.fillStyle=C.red;g.fillText('0.4 s',x4+3,12);
+  g.fillStyle=C.mute;g.fillText('|a| S1 (pink) S2 (blue), '+(n/FS).toFixed(1)+' s',2,h-1);
+}
+
+/* ---------- log ---------- */
+function renderLog(){
+  const body=$('logBody');let q=0,bm=0;
+  const rows=Core.log.map(r=>{
+    if(r.type==='quake')q++;else bm++;
+    const dots='<span class="dots">'+r.checks.map(c=>'<i class="'+(c.st==='pass'?'':'f')+'"></i>').join('')+'</span>';
+    return'<tr class="row'+(pinned===r.id?' sel':'')+'" data-id="'+r.id+'"><td>'+fmtT(r.clock)+'</td><td><span class="chip '+(r.type==='quake'?'q':'b')+'">'+(r.type==='quake'?'QUAKE':'BUMP')+'</span>'+dots+'</td><td>'+r.peak.toFixed(2)+'</td><td>'+r.dur.toFixed(2)+'</td><td>'+(r.f?r.f.toFixed(1):'--')+'</td></tr>';
+  });
+  body.innerHTML=rows.join('');
+  $('logEmpty').style.display=rows.length?'none':'';
+  $('logCnt').textContent=q+' quake'+(q===1?'':'s')+' | '+bm+' bump'+(bm===1?'':'s')+' rejected';
+}
+$('logBody').addEventListener('click',e=>{const tr=e.target.closest('tr');if(!tr)return;pinned=+tr.dataset.id;renderLog();renderVerdict();});
+$('btnLive').addEventListener('click',()=>{pinned=null;renderLog();renderVerdict();});
+Core.hooks.onStart=()=>{pinned=null;};
+Core.hooks.onFinalize=rec=>{
+  renderLog();
+  if(rec.type==='bump')flash={t:performance.now()+4500,msg:'Bump rejected',sub:rec.f.toFixed(0)+' Hz, '+rec.dur.toFixed(2)+' s, base barely moved'};
+  else flash={t:performance.now()+4500,msg:'Shaking ended',sub:'event logged: '+rec.f.toFixed(1)+' Hz, peak '+rec.peak.toFixed(2)+' g'};
+};
+
+/* ---------- text/status updates (8 Hz) ---------- */
+let lastDriveState=-1,heldPk=0,heldRms=0,ampS=0,lastTone=0;
+const LVLN=['quiet','micro tremor','minor','moderate','strong','severe'];
+const MSG=['Tremor detected','Light shaking confirmed','Moderate shaking - the building is responding','STRONG SHAKING - keep clear of the structure','SEVERE SHAKING - structure under real load','EXTREME - stand clear now'];
+function maxRing(r,n){let m=0;for(let k=0;k<n;k++){const v=r.at(k);if(v>m)m=v;}return m;}
+function updateText(){
+  const d=Core.det,st=d.state,s1=S[0],s2=S[1],now=Core.now();
+  const lvl=Core.levelOf(maxRing(s1.rms,400));
+  // body/status
+  const cls=['st-idle','st-shaking','st-alarm'][st];
+  if(document.body.className!==cls)document.body.className=cls;
+  $('status').className='card status s-'+['idle','shaking','alarm'][st];
+  $('ledG').className='led g'+(st===0?' on':'');
+  $('ledY').className='led y'+(st===1?' on blink':'');
+  $('ledR').className='led r'+(st===2?' on fast':'');
+  $('stWord').textContent=['IDLE','SHAKING?','ALARM'][st];
+  let msg,sub;const fl=flash&&performance.now()<flash.t?flash:null;
+  if(st===0){if(fl){msg=fl.msg;sub=fl.sub;}else{msg='All quiet - watching both floors';sub='armed: waiting for energy above 0.15 g RMS';}}
+  else if(st===1){msg='Motion detected - verifying';sub='candidate only: must hold 0.4 s ('+d.dwell.toFixed(2)+' s so far)';}
+  else{const L=Math.max(1,Core.levelOf(d.ev?d.ev.rms1:maxRing(s1.rms,400)));msg='EARTHQUAKE - level '+L+': '+MSG[L];sub=(d.ev&&!d.ev.closed?'shaking in progress':'shaking stopped - latched, re-arms in '+Math.max(0,P.LATCH-(now-d.lastAbove)).toFixed(1)+' s');}
+  $('stMsg').textContent=msg;$('stSub').textContent=sub;
+  $('buzTxt').textContent=st===2?'BUZZER ON':'BUZZER OFF';
+  $('buzW1').style.opacity=st===2?1:.25;
+  // state machine
+  ['n0','n1','n2'].forEach((id,i)=>$(id).classList.toggle('on',i===st));
+  $('a01').classList.toggle('hot',st===1);$('a12').classList.toggle('hot',st===2);
+  const dw=Math.min(1,d.dwell/P.CONFIRM);
+  $('dwT').textContent=(st===2?P.CONFIRM:d.dwell).toFixed(2);$('dwB').style.width=(st===2?100:dw*100)+'%';
+  const latRem=(st===2&&d.ev&&d.ev.closed)?Math.max(0,P.LATCH-(now-d.lastAbove)):null;
+  $('ltT').textContent=latRem===null?(st===2?'3.0':'--'):latRem.toFixed(1);
+  $('ltB').style.width=(latRem===null?(st===2?100:0):latRem/P.LATCH*100)+'%';
+  let why;
+  if(st===0)why=fl&&fl.msg==='Bump rejected'?'It never held above 0.15 g for 0.4 s, so the detector fell back to IDLE.':'Waiting for motion. Noise floor is ~0.004 g, far below threshold.';
+  else if(st===1)why='Energy seen (RMS '+s1.r.toFixed(2)+' g). Quake or bump? Timer decides: sustained = alarm, fades = bump.';
+  else why='Sustained for 0.4 s: confirmed. Alarm stays latched 3 s after shaking stops, then re-arms.';
+  if($('why').textContent!==why)$('why').textContent=why;
+  // spectrum / frequency
+  spec=Core.mainSpec(0);
+  const ok=spec.amp>0.02;
+  if(ok)lastTone=spec.f;
+  $('fVal').textContent=ok?spec.f.toFixed(2):'--';
+  $('fVal').style.color=ok?(spec.f>=P.BAND_LO&&spec.f<=P.BAND_HI?'var(--ink)':'#b3231e'):'var(--mute)';
+  const q=ok?spec.conf:0;$('fQ').style.width=(q*100)+'%';$('fQ').style.background=q>.6?C.green:q>.35?C.yellow:C.red;
+  $('fSub').innerHTML=ok?('confidence <b>'+(q>.6?'HIGH':q>.35?'MED':'LOW')+'</b> '+Math.round(q*100)+'% | '+((spec.f>=P.BAND_LO&&spec.f<=P.BAND_HI)?'in 3-10 Hz band':'outside shake band')):(lastTone?'no tone now (last '+lastTone.toFixed(2)+' Hz)':'no dominant tone');
+  $('fftSub').innerHTML=ok?'peak <b>'+spec.f.toFixed(2)+' Hz</b>, '+spec.amp.toFixed(3)+' g amplitude, axis '+AXN[spec.axis]:'S1 filtered, axis '+AXN[spec.axis]+' - no tone above 0.02 g floor';
+  // tiles
+  const pk1=maxRing(s1.mag,400),pk2=maxRing(s2.mag,400);
+  $('pkVal').textContent=pk1.toFixed(3);$('pk1').textContent=pk1.toFixed(3);$('pk2').textContent=pk2.toFixed(3);
+  $('rmsVal').textContent=s1.r.toFixed(3);$('rms1').textContent=s1.r.toFixed(3);$('rms2').textContent=s2.r.toFixed(3);
+  const lg=Core.log[0];$('pkHold').textContent=lg?lg.peak.toFixed(3)+' g ('+lg.type+')':'--';$('rmsHold').textContent=lg?lg.rms1.toFixed(3)+' g':'--';
+  const rh=maxRing(s1.rms,600);
+  $('magVal').textContent=Core.magOf(rh).toFixed(1);
+  const L=Core.levelOf(rh);[...$('lvl').children].forEach((el,i)=>el.classList.toggle('on',i<L));
+  $('lvlN').textContent=L;$('lvlName').textContent=LVLN[L]+(st===2?'':(L>0?' (not an alarm)':''));
+  $('tMag').classList.toggle('hot',st===2);
+  // ratio
+  const r1=s1.r,r2=s2.r;let ratio=null;
+  if(r2>0.03&&r1>0.03){ratio=r1/r2;ampS=ampS?ampS+(ratio-ampS)*0.4:ratio;}else ampS=0;
+  $('ampVal').textContent=ratio?ampS.toFixed(2):'--';
+  $('ampSub').textContent=ratio?'S1 '+r1.toFixed(3)+' g / S2 '+r2.toFixed(3)+' g':'base too quiet for a ratio';
+  $('cmpR').textContent=ratio?ampS.toFixed(2):'--';
+  const dAxr=S[0].fil[dAx],a1=maxRing(dAxr,100),a2=maxRing(S[1].fil[dAx],100);
+  $('cmpA1').textContent=a1.toFixed(3);$('cmpA2').textContent=a2.toFixed(3);
+  const ref=Math.max(1,parseFloat($('refR').value)||4);
+  const tmdEl=$('tmd');
+  if(ratio&&st>0){const red=(1-ampS/ref)*100;
+    tmdEl.firstChild.textContent=ratio?'TMD effect: top floor moves '+ampS.toFixed(1)+'x the base instead of '+ref.toFixed(1)+'x undamped, i.e. '+(red>=0?red.toFixed(0)+'% less':Math.abs(red).toFixed(0)+'% MORE')+' motion. Undamped ref ':'';}
+  else tmdEl.firstChild.textContent='TMD effect: waiting for a shake. Undamped reference ratio ';
+  // next
+  const ni=Core.nextInfo();$('nextInfo').textContent=ni?'next: '+ni.name+' in '+ni.inSec.toFixed(1)+' s':'auto loop paused';
+  $('clock').textContent='t = '+now.toFixed(1)+' s';
+  renderVerdict();
+}
+
+/* ---------- data quality (simulated telemetry) ---------- */
+let drops=0,fifo=0,dropUntil=0;
+function gaussUI(){return Math.sqrt(-2*Math.log(1-Math.random()))*Math.cos(6.2832*Math.random());}
+function updateDQ(){
+  $('dqR1').textContent=(799.7+gaussUI()*0.25).toFixed(1);$('dqR2').textContent=(800.0+gaussUI()*0.25).toFixed(1);
+  if(Math.random()<0.012){drops++;dropUntil=performance.now()+2500;}
+  if(Math.random()<0.0008){fifo++;dropUntil=performance.now()+2500;}
+  $('dqDrop').textContent=drops;$('dqFifo').textContent=fifo;
+  $('dqDropW').className=performance.now()<dropUntil?'warn':'';
+  $('dqLat').textContent=Math.round(14+Math.abs(gaussUI())*2.5);
+}
+setInterval(updateDQ,500);
+
+/* ---------- controls ---------- */
+$('btnBump').onclick=()=>Core.trigger('bump');
+$('btnQuake').onclick=()=>Core.trigger('quake');
+function setAuto(v){Core.auto=v;const b=$('btnAuto');b.classList.toggle('on',v);b.firstChild.textContent='Auto loop: '+(v?'ON ':'OFF ');}
+$('btnAuto').onclick=()=>setAuto(!Core.auto);
+window.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const k=e.key.toLowerCase();if(k==='b')Core.trigger('bump');else if(k==='e')Core.trigger('quake');else if(k==='a')setAuto(!Core.auto);});
+$('sensSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;view=+b.dataset.s;[...$('sensSeg').children].forEach(x=>x.classList.toggle('on',x===b));$('detNote').textContent='detector input: S1'+(view?' (viewing S2)':'');});
+
+/* ---------- main loop ---------- */
+let last=performance.now(),acc=0,lastDraw=0,lastTxt=0,frames=0,fpsT=last;
+function frame(now){
+  let dt=(now-last)/1000;last=now;if(dt>0.25)dt=0.25;
+  acc+=dt*FS;const n=Math.floor(acc);acc-=n;for(let i=0;i<n;i++)Core.step();
+  if(now-lastTxt>=120){lastTxt=now;updateText();}
+  if(now-lastDraw>=30){lastDraw=now;frames++;drawStages();drawCmp();drawFft();drawThumb();}
+  if(now-fpsT>=1000){$('dqFps').textContent=Math.round(frames*1000/(now-fpsT));frames=0;fpsT=now;}
+  requestAnimationFrame(frame);
+}
+updateText();renderLog();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

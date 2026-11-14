@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earth Detector</title>
+<style>
+:root{
+  --ink:#111; --mid:#555; --grey:#8a8a8a; --line:#d9d9d9;
+  --green:#2ca02c; --amber:#d99a00; --red:#d62728;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#fff;color:var(--ink);
+  font-family:"DejaVu Sans",Verdana,"Bitstream Vera Sans",sans-serif;font-size:13px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+#rule{position:fixed;top:0;left:0;right:0;height:3px;background:var(--red);display:none;z-index:5}
+body.alarm #rule{display:block}
+
+.page{display:flex;height:100vh;min-height:620px}
+aside{width:288px;flex:none;padding:30px 22px 20px 32px;display:flex;flex-direction:column;overflow-y:auto}
+main{flex:1;min-width:0;display:flex;flex-direction:column;padding:22px 36px 18px 8px}
+
+.k{color:var(--grey);font-size:11px;letter-spacing:.02em}
+.st{font-size:44px;line-height:1.05;margin:4px 0 6px;font-weight:400}
+.st.idle{color:var(--green)} .st.shaking{color:var(--amber)} .st.alarm{color:var(--red)}
+.msg{font-size:12px;line-height:1.4;color:var(--mid);min-height:34px}
+body.alarm .msg{color:var(--red)}
+
+.freq{margin-top:16px}
+.big{font-size:30px;line-height:1.15}
+.unit{font-size:13px;color:var(--mid)}
+.small{font-size:10.5px;color:var(--grey);min-height:14px}
+.stale{color:var(--grey)!important}
+
+.rows{margin-top:14px}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0}
+.row span{color:var(--grey);font-size:11px}
+.row b{font-weight:400;font-size:14px}
+
+.sec{margin:20px 0 6px}
+.ser label{display:flex;align-items:center;gap:8px;padding:2.5px 0;cursor:pointer;font-size:12px;user-select:none}
+.ser input{margin:0;accent-color:#444}
+.sw{display:inline-block;width:16px;height:0;border-top:2px solid}
+.sw.dash{border-top-style:dashed}
+body.spec .ser label.nospec{opacity:.35}
+
+.lnk{color:var(--mid);text-decoration:underline;text-underline-offset:3px;text-decoration-color:#bbb}
+.lnk:hover{color:var(--ink)}
+.lnk.on{color:var(--ink);text-decoration-color:var(--ink)}
+.ev{margin-top:16px;text-align:left}
+.sim{margin-top:12px;font-size:11px;color:var(--grey);display:flex;gap:10px;align-items:baseline;white-space:nowrap}
+.foot{margin-top:auto;padding-top:22px;font-size:10px;line-height:1.5;color:var(--grey)}
+
+.tabs{font-size:12px;color:var(--grey);margin:0 0 6px 64px;display:flex;gap:8px;align-items:baseline}
+.tabs button{color:var(--grey)}
+.tabs button.on{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.plot{flex:1;min-height:260px;position:relative}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.cap{margin:6px 0 0 64px;font-size:12px;color:var(--mid);line-height:1.45;min-height:18px}
+#evbox{margin:10px 0 0 64px;max-height:170px;overflow:auto;border-top:1px solid var(--line)}
+#evbox table{border-collapse:collapse;width:100%;font-size:11.5px}
+#evbox th{font-weight:400;color:var(--grey);text-align:left;padding:5px 12px 5px 0;font-size:10.5px}
+#evbox td{padding:3px 12px 3px 0;white-space:nowrap}
+#evbox .q{color:var(--red)}
+#evbox .empty{color:var(--grey);padding:8px 0}
+[hidden]{display:none!important}
+
+@media (max-width:1400px){
+  aside{width:262px;padding-left:24px}
+  .st{font-size:38px}
+  main{padding-right:24px}
+}
+</style>
+</head>
+<body>
+<div id="rule"></div>
+<div class="page">
+  <aside>
+    <div class="k">Status</div>
+    <div id="status" class="st idle">IDLE</div>
+    <div id="stmsg" class="msg"></div>
+
+    <div class="freq">
+      <div class="k">Frequency</div>
+      <div id="freq" class="big">&mdash;</div>
+      <div id="fmeth" class="small"></div>
+    </div>
+
+    <div class="rows">
+      <div class="row"><span>Peak g</span><b id="vPeak">&mdash;</b></div>
+      <div class="row"><span>RMS g</span><b id="vRms">&mdash;</b></div>
+      <div class="row"><span>Magnitude</span><b id="vMag">&mdash;</b></div>
+      <div class="row"><span>Amplification S1/S2</span><b id="vAmp">&mdash;</b></div>
+    </div>
+
+    <div class="k sec">Series</div>
+    <div class="ser" id="ser"></div>
+
+    <div class="ev"><button id="evBtn" class="lnk">Events (0)</button></div>
+    <div class="sim"><span>Simulate</span>
+      <button id="bBump" class="lnk">Bump</button>
+      <button id="bQuake" class="lnk">Earthquake</button>
+      <button id="bAuto" class="lnk on">Auto: on</button>
+    </div>
+
+    <div id="foot" class="foot"></div>
+  </aside>
+
+  <main>
+    <div class="tabs"><button id="tTime" class="on">Time</button><span>|</span><button id="tSpec">Spectrum</button></div>
+    <div class="plot"><canvas id="cv"></canvas></div>
+    <div id="verdict" class="cap">No events yet.</div>
+    <div id="evbox" hidden></div>
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const PI2=Math.PI*2;
+const FS=200, RB=4096, RM=RB-1, WIN=100, TW=10*FS;
+const ON=0.05, OFF=0.03, CREST_MAX=3.2, SUSTAIN=0.4, LATCH=3.0, NOISE=0.004;
+const BASE=[[0.012,-0.008,1.018],[-0.015,0.010,0.980]];
+const LV=['Quiet','Micro','Weak','Moderate','Strong','Severe'];
+const T10=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f'];
+
+/* ---------- filters (0.5-20 Hz band-pass) ---------- */
+function biquad(type,fc,fs,Q){
+  const w0=PI2*fc/fs,c=Math.cos(w0),s=Math.sin(w0),al=s/(2*Q);
+  let b0,b1,b2;
+  if(type==='hp'){b0=(1+c)/2;b1=-(1+c);b2=(1+c)/2;}else{b0=(1-c)/2;b1=1-c;b2=(1-c)/2;}
+  const a0=1+al,a1=-2*c,a2=1-al;
+  return {b0:b0/a0,b1:b1/a0,b2:b2/a0,a1:a1/a0,a2:a2/a0};
+}
+const HP=biquad('hp',0.5,FS,Math.SQRT1_2), LP=biquad('lp',20,FS,Math.SQRT1_2);
+function run(q,st,x){const y=q.b0*x+st.z1;st.z1=q.b1*x-q.a1*y+st.z2;st.z2=q.b2*x-q.a2*y;return y;}
+
+/* ---------- data (ring buffers) ---------- */
+function mkSensor(){
+  return {raw:[new Float32Array(RB),new Float32Array(RB),new Float32Array(RB)],
+          flt:[new Float32Array(RB),new Float32Array(RB),new Float32Array(RB)],
+          mag:new Float32Array(RB), rmsB:new Float32Array(RB),
+          win:new Float32Array(WIN), wi:0, sumsq:0, rms:0, pkw:0,
+          f:[0,1,2].map(()=>({init:false,hp:{z1:0,z2:0},lp:{z1:0,z2:0}}))};
+}
+const S=[mkSensor(),mkSensor()];
+const stB=new Uint8Array(RB);
+let n=0;
+function gauss(){let u=0;while(u===0)u=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(PI2*Math.random());}
+
+/* ---------- simulator ---------- */
+const events=[]; const sg=[0,0,0];
+let auto=true, ph=4, phEnd=0, firstQ=true;
+const PH=[{d:6},{d:0.4,fire:'b'},{d:5},{d:8,fire:'q'},{d:6}];
+function fireBump(){
+  events.push({k:'b',t0:n/FS,A:0.3+Math.random()*0.5,f:20+Math.random()*10,tau:0.05+Math.random()*0.025,dir:[0.85,0.3+Math.random()*0.2,0.45+Math.random()*0.2]});
+}
+function fireQuake(f){
+  for(const e of events) if(e.k==='q') return;
+  events.push({k:'q',t0:n/FS,D:8,f:f||(3+Math.random()*5),a2:0.14+Math.random()*0.03,a1:0.33+Math.random()*0.07,lag:0.35+Math.random()*0.2});
+}
+function autoTick(t){
+  if(!auto) return;
+  if(t>=phEnd){
+    ph=(ph+1)%PH.length; const p=PH[ph]; phEnd=t+p.d;
+    if(p.fire==='b') fireBump();
+    else if(p.fire==='q'){ fireQuake(firstQ?4.72:0); firstQ=false; }
+  }
+}
+function eventSig(s,t){
+  sg[0]=sg[1]=sg[2]=0;
+  for(let i=0;i<events.length;i++){
+    const e=events[i], tt=t-e.t0; if(tt<0) continue;
+    if(e.k==='b'){
+      if(tt>1.5) continue;
+      const g=(s===0?1:0.12)*e.A*Math.exp(-tt/e.tau)*Math.sin(PI2*e.f*tt);
+      sg[0]+=g*e.dir[0]; sg[1]+=g*e.dir[1]; sg[2]+=g*e.dir[2];
+    }else{
+      if(tt>e.D) continue;
+      const env=Math.max(0,Math.min(1,tt,e.D-tt));
+      const amp=(s===0?e.a1:e.a2)*env, th=PI2*e.f*tt-(s===0?e.lag:0);
+      sg[0]+=amp*(Math.sin(th)+0.1*Math.sin(2*th+0.7));
+      sg[1]+=0.22*amp*Math.sin(th+1.1);
+      sg[2]+=0.10*amp*Math.sin(th+2.0);
+    }
+  }
+}
+
+/* ---------- detection ---------- */
+const det={state:0,timer:0,lastAbove:0,alarmT:0,crest:0};
+let ev=null, lastEv=null, log=[], cntAll=0, logDirty=true, verdict='No events yet.';
+function level(r){return (r>=0.02)+(r>=0.05)+(r>=0.10)+(r>=0.18)+(r>=0.32);}
+
+function detect(t){
+  const s0=S[0], rms=s0.rms, mag=s0.mag[n&RM], dt=1/FS;
+  const crest=rms>0.02?s0.pkw/rms:0; det.crest=crest;
+  const above=rms>ON, hold=rms>OFF, periodic=crest<CREST_MAX;
+  if(!ev && (above||mag>0.12)){
+    ev={t0:t,lastAct:t,lastMag:t,peak:0,rmsMax:0,crest:0,alarm:false,lat:0,freq:null,unc:0,meth:'',a1:0,a2:0,t:null};
+  }
+  if(det.state===2){
+    if(hold){det.lastAbove=t; if(periodic) det.timer=Math.min(1,det.timer+dt);}
+    if(t-det.lastAbove>=LATCH){det.state=0;det.timer=0;}
+  }else{
+    if(det.state===0&&above) det.state=1;
+    else if(det.state===1&&!hold){det.state=0;det.timer=0;}
+    if(det.state===1){
+      if(above&&periodic) det.timer+=dt; else det.timer=Math.max(0,det.timer-dt*2);
+      if(det.timer>=SUSTAIN){det.state=2;det.lastAbove=t;det.alarmT=t;if(ev){ev.alarm=true;ev.lat=t-ev.t0;}}
+    }else if(det.state===0) det.timer=0;
+  }
+  if(ev){
+    if(mag>ev.peak) ev.peak=mag;
+    if(rms>OFF||mag>0.12) ev.lastAct=t;
+    if(mag>0.04) ev.lastMag=t;
+    if(rms>ev.rmsMax){ev.rmsMax=rms;ev.crest=crest;}
+    if(rms>OFF){ev.a1+=mag*mag; ev.a2+=S[1].mag[n&RM]*S[1].mag[n&RM];}
+    if(det.state===0&&t-ev.lastAct>0.5) finalize();
+  }
+}
+function fmtTime(d){return d.toTimeString().slice(0,8);}
+function finalize(){
+  const e=ev; ev=null; if(!e||e.peak<0.08) return;
+  e.dur=Math.max(0.05,e.lastMag-e.t0); e.t=new Date(); e.lvl=level(e.rmsMax);
+  e.amp=e.a2>0?Math.sqrt(e.a1/e.a2):null;
+  log.unshift(e); if(log.length>40) log.pop(); cntAll++; logDirty=true; lastEv=e;
+  const when=fmtTime(e.t);
+  if(e.alarm){
+    verdict='Latest event ('+when+'): earthquake, accepted. Sustained periodic shaking'+(e.freq?' at '+e.freq.toFixed(2)+' Hz':'')+' for '+e.dur.toFixed(1)+' s, peak '+e.peak.toFixed(2)+' g; alarm raised after '+e.lat.toFixed(2)+' s.';
+  }else{
+    verdict='Latest event ('+when+'): bump, rejected. A short spike (crest factor '+e.crest.toFixed(1)+', limit '+CREST_MAX.toFixed(1)+') that died out in '+e.dur.toFixed(2)+' s, peak '+e.peak.toFixed(2)+' g.';
+  }
+  verdictDirty=true;
+}
+let verdictDirty=true;
+
+/* ---------- FFT ---------- */
+const NF=2048, NW=800, DF=FS/NF, NB=Math.floor(25/DF)+1;
+const cosT=new Float64Array(NF/2), sinT=new Float64Array(NF/2), rev=new Uint16Array(NF);
+for(let i=0;i<NF/2;i++){cosT[i]=Math.cos(PI2*i/NF);sinT[i]=-Math.sin(PI2*i/NF);}
+for(let i=0;i<NF;i++){let r=0,x=i;for(let b=0;b<11;b++){r=(r<<1)|(x&1);x>>=1;}rev[i]=r;}
+const hann=new Float64Array(NW); let sumW=0;
+for(let i=0;i<NW;i++){hann[i]=0.5-0.5*Math.cos(PI2*i/(NW-1));sumW+=hann[i];}
+const re=new Float64Array(NF), im=new Float64Array(NF);
+function fft(){
+  for(let i=0;i<NF;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+  for(let len=2;len<=NF;len<<=1){
+    const half=len>>1, step=NF/len;
+    for(let i=0;i<NF;i+=len){
+      for(let j=0;j<half;j++){
+        const wr=cosT[j*step], wi=sinT[j*step], a=i+j, b=a+half;
+        const tr=re[b]*wr-im[b]*wi, ti=re[b]*wi+im[b]*wr;
+        re[b]=re[a]-tr; im[b]=im[a]-ti; re[a]+=tr; im[a]+=ti;
+      }
+    }
+  }
+}
+const ampS=[new Float32Array(NB),new Float32Array(NB)];
+const fx={lock:false,fe:0,unc:0.05,conf:0};
+const K1=Math.ceil(1/DF), K2=Math.floor(20/DF);
+function updateSpectra(){
+  for(let s=0;s<2;s++){
+    const arr=S[s].flt[0], amp=ampS[s];
+    for(let i=0;i<NW;i++){re[i]=arr[(n-NW+i)&RM]*hann[i];im[i]=0;}
+    for(let i=NW;i<NF;i++){re[i]=0;im[i]=0;}
+    fft();
+    const norm=2/sumW;
+    for(let k=0;k<NB;k++) amp[k]=Math.hypot(re[k],im[k])*norm;
+    if(s===0){
+      let kp=K1,mx=0,total=0;
+      for(let k=K1;k<=K2;k++){const a=amp[k];total+=a*a;if(a>mx){mx=a;kp=k;}}
+      let pb=0;for(let k=Math.max(K1,kp-5);k<=Math.min(K2,kp+5);k++)pb+=amp[k]*amp[k];
+      const conf=total>0?pb/total:0;
+      const noise=(total-pb)/Math.max(1,(K2-K1-10)); const snr=mx*mx/Math.max(noise,1e-14);
+      let f=kp*DF;
+      if(kp>0&&kp<NB-1){const a=Math.log(amp[kp-1]+1e-12),b=Math.log(amp[kp]+1e-12),c=Math.log(amp[kp+1]+1e-12);const d=a-2*b+c;if(d!==0)f=(kp+0.5*(a-c)/d)*DF;}
+      const lock=conf>0.45&&mx>0.01;
+      if(lock){fx.fe=fx.lock?fx.fe+0.35*(f-fx.fe):f;}
+      fx.lock=lock;fx.conf=conf;
+      fx.unc=Math.min(1,Math.max(0.01,0.2/(2*Math.sqrt(Math.min(snr,1e4)/10))));
+    }
+  }
+}
+
+/* ---------- frequency measurement: zero-crossings (fast) then FFT (precise) ---------- */
+const zc=[]; let zcPrev=0, zcArmed=true; const ZH=0.015;
+function measure(t){
+  const v=S[0].flt[0][n&RM];
+  if(v<-ZH) zcArmed=true;
+  if(zcArmed && zcPrev<=0 && v>0){
+    zc.push((n-1+(-zcPrev)/(v-zcPrev))/FS); zcArmed=false; if(zc.length>24) zc.shift();
+  }
+  zcPrev=v;
+  if(zc.length&&t-zc[zc.length-1]>1) zc.length=0;
+  if(!ev||det.state===0) return;
+  let f=null,unc=0,meth='';
+  if(t-ev.t0>=4 && fx.lock && fx.fe>=1 && fx.fe<=15){f=fx.fe;unc=fx.unc;meth='fft';}
+  else{
+    let i0=zc.length; while(i0>0&&t-zc[i0-1]<=2) i0--;
+    const cnt=zc.length-i0;
+    if(cnt>=3){
+      const span=zc[zc.length-1]-zc[i0], q=(cnt-1)/span;
+      if(q>=1&&q<=15){f=q;unc=0.5/span;meth='zc';}
+    }
+  }
+  if(f!==null){ev.freq=f;ev.unc=unc;ev.meth=meth;}
+}
+
+/* ---------- step (one 200 Hz sample) ---------- */
+function step(){
+  const t=n/FS, ix=n&RM;
+  autoTick(t);
+  for(let i=events.length-1;i>=0;i--){const e=events[i];if(t-e.t0>(e.k==='b'?1.5:e.D+0.1))events.splice(i,1);}
+  for(let s=0;s<2;s++){
+    const Ss=S[s]; eventSig(s,t); let m2=0;
+    for(let a=0;a<3;a++){
+      const raw=BASE[s][a]+gauss()*NOISE+sg[a];
+      Ss.raw[a][ix]=raw;
+      const f=Ss.f[a];
+      if(!f.init){f.init=true;f.hp.z1=-HP.b0*raw;f.hp.z2=HP.b2*raw;}
+      const y=run(LP,f.lp,run(HP,f.hp,raw));
+      Ss.flt[a][ix]=y; m2+=y*y;
+    }
+    Ss.mag[ix]=Math.sqrt(m2);
+    Ss.sumsq+=m2-Ss.win[Ss.wi]; if(Ss.sumsq<0)Ss.sumsq=0; Ss.win[Ss.wi]=m2; Ss.wi=(Ss.wi+1)%WIN;
+    Ss.rms=Math.sqrt(Ss.sumsq/WIN); Ss.rmsB[ix]=Ss.rms;
+    let pk=0;for(let i=0;i<WIN;i++){if(Ss.win[i]>pk)pk=Ss.win[i];} Ss.pkw=Math.sqrt(pk);
+  }
+  detect(t);
+  stB[ix]=det.state;
+  if(n%10===0&&n>=NW) updateSpectra();
+  measure(t);
+  n++;
+}
+
+/* ---------- series definitions ---------- */
+const SER=[
+  {id:'rx',  name:'S1 raw x',      col:T10[4], on:false, spec:false, get:()=>S[0].raw[0]},
+  {id:'ry',  name:'S1 raw y',      col:T10[5], on:false, spec:false, get:()=>S[0].raw[1]},
+  {id:'rz',  name:'S1 raw z',      col:T10[6], on:false, spec:false, get:()=>S[0].raw[2]},
+  {id:'f1',  name:'S1 filtered',   col:T10[0], on:true,  spec:true,  get:()=>S[0].flt[0], si:0},
+  {id:'f2',  name:'S2 filtered',   col:T10[1], on:true,  spec:true,  get:()=>S[1].flt[0], si:1},
+  {id:'rms', name:'RMS envelope',  col:T10[2], on:false, spec:false, get:()=>S[0].rmsB},
+  {id:'thr', name:'Alarm thresholds', col:T10[3], on:true, spec:false, dash:true}
+];
+const serBox=$('ser');
+SER.forEach(s=>{
+  const l=document.createElement('label'); if(!s.spec) l.className='nospec';
+  l.innerHTML='<input type="checkbox"'+(s.on?' checked':'')+'><i class="sw'+(s.dash?' dash':'')+'" style="border-top-color:'+s.col+'"></i><span>'+s.name+'</span>';
+  l.firstChild.addEventListener('change',e=>{s.on=e.target.checked;});
+  serBox.appendChild(l);
+});
+
+/* ---------- canvas plot ---------- */
+const cv=$('cv'), ctx=cv.getContext('2d');
+let CW=10,CH=10;
+function fit(){
+  const r=cv.getBoundingClientRect(), d=window.devicePixelRatio||1;
+  CW=Math.max(10,r.width); CH=Math.max(10,r.height);
+  cv.width=Math.round(CW*d); cv.height=Math.round(CH*d); ctx.setTransform(d,0,0,d,0,0);
+}
+if(window.ResizeObserver) new ResizeObserver(fit).observe(cv.parentNode);
+window.addEventListener('resize',fit); fit();
+
+const FONT='"DejaVu Sans",Verdana,"Bitstream Vera Sans",sans-serif';
+const GRID='#ececec', INK='#000';
+let view='time';
+
+function niceStep(x){
+  const p=Math.pow(10,Math.floor(Math.log10(x))), m=x/p;
+  return (m<=1?1:m<=2?2:m<=5?5:10)*p;
+}
+function fmtTick(v,step){
+  const d=step>=1?0:Math.min(3,Math.ceil(-Math.log10(step)-1e-9));
+  const s=v.toFixed(d); return s==='-0'||s==='-0.0'||s==='-0.00'||s==='-0.000'?s.slice(1):s;
+}
+
+let ty0=-0.1, ty1=0.1, sy1=0.05;
+function timeRange(){
+  let lo=Infinity,hi=-Infinity,raw=false,sgn=false,any=false;
+  for(const s of SER){
+    if(!s.on||s.id==='thr') continue;
+    any=true; if(s.id[0]==='r'&&s.id!=='rms') raw=true; else if(s.id!=='rms') sgn=true;
+    const b=s.get();
+    for(let k=n-TW;k<n;k+=4){const v=b[k&RM];if(v<lo)lo=v;if(v>hi)hi=v;}
+  }
+  if(!any){lo=0;hi=0.1;}
+  if(SER[6].on){hi=Math.max(hi,ON*1.6);lo=Math.min(lo,0);}
+  if(raw){ /* as is */ }
+  else if(sgn){const m=Math.max(Math.abs(lo),Math.abs(hi),0.1);lo=-m;hi=m;}
+  else {lo=Math.min(lo,0);hi=Math.max(hi,0.1);}
+  if(hi-lo<0.2){const c=(hi+lo)/2;lo=c-0.1;hi=c+0.1;}
+  const pad=(hi-lo)*0.08; return [lo-(lo<0?pad:0),hi+pad];
+}
+
+function draw(){
+  const w=CW,h=CH, spec=view==='spec';
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+  const L=64,R=6,B=46;
+  const pw=w-L-R;
+
+  // legend entries (only what is drawn)
+  const ents=[];
+  for(const s of SER){
+    if(!s.on) continue;
+    if(spec){ if(s.spec) ents.push({c:s.col,t:s.name,d:false}); continue; }
+    if(s.id==='thr'){ents.push({c:s.col,t:'Alarm on '+ON.toFixed(2)+' g (RMS)',d:true});ents.push({c:'#e89a9b',t:'Alarm off '+OFF.toFixed(2)+' g',d:true});}
+    else ents.push({c:s.col,t:s.name+(s.id==='rms'?' (S1)':''),d:false});
+  }
+  ctx.font='11px '+FONT;
+  const pad=7, gap=16, sw=22, rowH=17;
+  const wid=ents.map(e=>sw+6+ctx.measureText(e.t).width);
+  const rows=[[]]; let rw=pad*2;
+  ents.forEach((e,i)=>{
+    const need=wid[i]+(rows[rows.length-1].length?gap:0);
+    if(rw+need>pw&&rows[rows.length-1].length){rows.push([]);rw=pad*2;}
+    rows[rows.length-1].push(i); rw+=wid[i]+(rows[rows.length-1].length>1?gap:0);
+  });
+  const legH=ents.length?rows.length*rowH+pad*2-4:0;
+  const T=34+legH+(legH?10:0);
+  const ph=h-T-B;
+  if(ph<40) return;
+
+  // title
+  ctx.fillStyle=INK; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.font='14px '+FONT;
+  ctx.fillText(spec?'Amplitude spectrum (4 s Hann window)':'Acceleration, last 10 s',L,22);
+
+  // legend box
+  if(ents.length){
+    let maxW=0; rows.forEach(r=>{let tw=pad*2;r.forEach((i,j)=>{tw+=wid[i]+(j?gap:0);});maxW=Math.max(maxW,tw);});
+    const ly=34;
+    ctx.strokeStyle='#d0d0d0';ctx.lineWidth=1;ctx.fillStyle='#fff';
+    ctx.fillRect(L+.5,ly+.5,maxW,legH);ctx.strokeRect(L+.5,ly+.5,maxW,legH);
+    ctx.font='11px '+FONT;ctx.textBaseline='middle';
+    rows.forEach((r,ri)=>{
+      let x=L+pad, y=ly+pad+ri*rowH+rowH/2-2;
+      r.forEach(i=>{
+        const e=ents[i];
+        ctx.strokeStyle=e.c;ctx.lineWidth=1.5;ctx.setLineDash(e.d?[4,3]:[]);
+        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+sw,y);ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle=INK;ctx.textAlign='left';ctx.fillText(e.t,x+sw+6,y);
+        x+=wid[i]+gap;
+      });
+    });
+    ctx.textBaseline='alphabetic';
+  }
+
+  let X, Y, y0, y1, xTicks, xLab, yLab;
+  if(!spec){
+    const [a,b]=timeRange();
+    ty0=a<ty0?a:ty0+(a-ty0)*0.04; ty1=b>ty1?b:ty1+(b-ty1)*0.04;
+    y0=ty0;y1=ty1;
+    X=k=>L+(k-(n-TW))/(TW-1)*pw;
+    xTicks=[];for(let i=0;i<=5;i++) xTicks.push({v:i/5,t:String(-10+2*i)});
+    xLab='Time (s)'; yLab='Acceleration (g)';
+  }else{
+    let mx=0.02;
+    SER.forEach(s=>{if(s.on&&s.spec){const A=ampS[s.si];for(let k=0;k<NB;k++)if(A[k]>mx)mx=A[k];}});
+    const b=mx*1.15; sy1=b>sy1?b:sy1+(b-sy1)*0.04;
+    y0=0;y1=sy1;
+    X=f=>L+f/25*pw;
+    xTicks=[];for(let f=0;f<=25;f+=5) xTicks.push({v:f/25,t:String(f)});
+    xLab='Frequency (Hz)'; yLab='Amplitude (g)';
+  }
+  Y=v=>T+(y1-v)/(y1-y0)*ph;
+  const step=niceStep((y1-y0)/6);
+
+  // alarm background (time view only)
+  if(!spec){
+    const n0=n-TW; let prev=0,sx=L;
+    for(let k=n0;k<=n;k+=4){
+      const st=k<n?stB[k&RM]:0, x=L+(k-n0)/(TW-1)*pw;
+      if(st===2&&prev!==2) sx=x;
+      if(st!==2&&prev===2){ctx.fillStyle='rgba(214,39,40,0.08)';ctx.fillRect(sx,T,x-sx,ph);}
+      prev=st;
+    }
+    if(prev===2){ctx.fillStyle='rgba(214,39,40,0.08)';ctx.fillRect(sx,T,L+pw-sx,ph);}
+  }
+
+  // grid + ticks
+  ctx.lineWidth=1;ctx.font='11px '+FONT;
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let v=Math.ceil(y0/step-1e-9)*step;v<=y1+1e-9;v+=step){
+    const y=Math.round(Y(v))+.5;
+    ctx.strokeStyle=GRID;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();
+    ctx.strokeStyle=INK;ctx.beginPath();ctx.moveTo(L-4,y);ctx.lineTo(L,y);ctx.stroke();
+    ctx.fillStyle=INK;ctx.fillText(fmtTick(Math.abs(v)<1e-9?0:v,step),L-7,y);
+  }
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(const tk of xTicks){
+    const x=Math.round(L+tk.v*pw)+.5;
+    ctx.strokeStyle=GRID;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();
+    ctx.strokeStyle=INK;ctx.beginPath();ctx.moveTo(x,T+ph);ctx.lineTo(x,T+ph+4);ctx.stroke();
+    ctx.fillStyle=INK;ctx.fillText(tk.t,Math.min(w-8,Math.max(L+4,x)),T+ph+7);
+  }
+
+  // zero line (time view)
+  if(!spec&&y0<0&&y1>0){ctx.strokeStyle='#cfcfcf';ctx.beginPath();ctx.moveTo(L,Math.round(Y(0))+.5);ctx.lineTo(L+pw,Math.round(Y(0))+.5);ctx.stroke();}
+
+  // data
+  ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();
+  ctx.lineWidth=1.5;ctx.lineJoin='round';
+  if(!spec){
+    const stride=Math.max(1,Math.floor(TW/(pw*1.5))), n0=n-TW;
+    for(let i=SER.length-1;i>=0;i--){
+      const s=SER[i]; if(!s.on) continue;
+      if(s.id==='thr'){
+        ctx.setLineDash([6,4]);
+        ctx.strokeStyle=s.col;let yy=Math.round(Y(ON))+.5;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(L+pw,yy);ctx.stroke();
+        ctx.strokeStyle='#e89a9b';yy=Math.round(Y(OFF))+.5;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(L+pw,yy);ctx.stroke();
+        ctx.setLineDash([]);continue;
+      }
+      const buf=s.get(); ctx.strokeStyle=s.col;ctx.beginPath();
+      for(let k=n0;k<n;k+=stride){const x=X(k),y=Y(buf[k&RM]);k===n0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+      ctx.stroke();
+    }
+  }else{
+    for(const s of SER){
+      if(!s.on||!s.spec) continue;
+      const A=ampS[s.si]; ctx.strokeStyle=s.col;ctx.beginPath();
+      for(let k=0;k<NB;k++){const x=X(k*DF),y=Y(A[k]);k?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+      ctx.stroke();
+    }
+    if(!SER[3].on&&!SER[4].on){
+      ctx.fillStyle='#777';ctx.font='12px '+FONT;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('Enable S1 filtered or S2 filtered to see a spectrum',L+pw/2,T+ph/2);
+    }
+  }
+  ctx.restore();
+
+  // peak marker in spectrum view
+  if(spec&&ev&&det.state>=1&&ev.freq!==null){
+    const x=Math.round(X(ev.freq))+.5;
+    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();ctx.setLineDash([]);
+    const lab=(ev.meth==='zc'?'≈ ':'')+ev.freq.toFixed(ev.meth==='zc'?1:2)+' Hz';
+    ctx.fillStyle=INK;ctx.font='12px '+FONT;ctx.textBaseline='top';
+    const right=x>L+pw-90; ctx.textAlign=right?'right':'left';
+    ctx.fillText(lab,x+(right?-6:6),T+6);
+  }
+
+  // spines (left + bottom only)
+  ctx.strokeStyle=INK;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(L+.5,T);ctx.lineTo(L+.5,T+ph+.5);ctx.lineTo(L+pw,T+ph+.5);ctx.stroke();
+
+  // axis labels
+  ctx.fillStyle=INK;ctx.font='12px '+FONT;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText(xLab,L+pw/2,h-6);
+  ctx.save();ctx.translate(14,T+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText(yLab,0,0);ctx.restore();
+}
+
+/* ---------- text UI ---------- */
+const el={status:$('status'),msg:$('stmsg'),freq:$('freq'),fmeth:$('fmeth'),peak:$('vPeak'),rms:$('vRms'),mag:$('vMag'),amp:$('vAmp'),
+  foot:$('foot'),verdict:$('verdict'),evBtn:$('evBtn'),evBox:$('evbox')};
+const cache={};
+function setText(k,node,v){if(cache[k]!==v){cache[k]=v;node.textContent=v;}}
+function setHTML(k,node,v){if(cache[k]!==v){cache[k]=v;node.innerHTML=v;}}
+function setStale(node,on){node.classList.toggle('stale',on);}
+let rateHz=FS, dropped=0, lastFrameMs=0;
+
+function ui(t){
+  const st=det.state, live=!!ev;
+  const word=st===2?'ALARM':st===1?'SHAKING':'IDLE';
+  if(cache.word!==word){
+    cache.word=word; el.status.textContent=word; el.status.className='st '+(st===2?'alarm':st===1?'shaking':'idle');
+    document.body.classList.toggle('alarm',st===2);
+    document.title=(st===2?'ALARM - ':'')+'Earth Detector';
+  }
+  let msg;
+  if(st===2){
+    const f=ev&&ev.freq!==null?' '+ev.freq.toFixed(1)+' Hz':'';
+    msg='Sustained'+f+' shaking for '+(ev?(t-ev.t0).toFixed(1):'0.0')+' s';
+  }else if(st===1) msg='Above '+ON.toFixed(2)+' g. Checking whether it is sustained…';
+  else msg='Listening. Nothing above '+ON.toFixed(2)+' g.';
+  setText('msg',el.msg,msg);
+
+  const v=ev||lastEv;
+  // frequency
+  let fh='—', fm='waiting for shaking';
+  if(v&&v.freq!==null&&(ev?st>=1:true)){
+    const fft=v.meth==='fft';
+    fh=(fft?'':'≈ ')+'<span>'+v.freq.toFixed(fft?2:1)+'</span><span class="unit"> ± '+v.unc.toFixed(fft?2:1)+' Hz</span>';
+    fm=ev?(fft?'FFT, Hann window, parabolic peak':'quick zero-crossing estimate'):'last event';
+  }else if(ev&&st>=1){fh='…';fm='measuring';}
+  else if(lastEv){fm='no frequency (impulse)';}
+  setHTML('freq',el.freq,fh); setText('fm',el.fmeth,fm);
+  const fstale=!(ev&&st>=1&&v.freq!==null); setStale(el.freq,fstale);
+
+  setText('rms',el.rms,S[0].rms.toFixed(3));
+  if(v){
+    setText('peak',el.peak,v.peak.toFixed(3));
+    const lv=level(v.rmsMax); setText('mag',el.mag,lv+' · '+LV[lv]);
+    const am=v.a2>0?Math.sqrt(v.a1/v.a2):null;
+    setText('amp',el.amp,am?am.toFixed(1)+' ×':'—');
+  }else{setText('peak',el.peak,'—');setText('mag',el.mag,'—');setText('amp',el.amp,'—');}
+  [el.peak,el.mag,el.amp].forEach(e=>setStale(e,!live));
+
+  setText('evb',el.evBtn,'Events ('+cntAll+')');
+  if(verdictDirty){verdictDirty=false;el.verdict.textContent=verdict;}
+  if(logDirty&&!el.evBox.hidden) buildLog();
+  setText('foot',el.foot,'Data: S1 + S2, '+rateHz.toFixed(0)+' Hz (simulated stand-in for the 800 Hz device), band-pass 0.5–20 Hz. Dropped frames: '+dropped+'. Link: simulated, last frame '+lastFrameMs.toFixed(0)+' ms ago.');
+}
+function buildLog(){
+  logDirty=false;
+  if(!log.length){el.evBox.innerHTML='<div class="empty">No events recorded.</div>';return;}
+  let h='<table><tr><th>Time</th><th>Verdict</th><th>Peak (g)</th><th>Freq (Hz)</th><th>Duration (s)</th><th>Magnitude</th></tr>';
+  for(const e of log){
+    h+='<tr><td>'+fmtTime(e.t)+'</td><td class="'+(e.alarm?'q':'')+'">'+(e.alarm?'Earthquake, alarm':'Bump, rejected')+'</td><td>'+e.peak.toFixed(3)+'</td><td>'+(e.freq!==null?e.freq.toFixed(2):'—')+'</td><td>'+e.dur.toFixed(1)+'</td><td>'+e.lvl+' · '+LV[e.lvl]+'</td></tr>';
+  }
+  el.evBox.innerHTML=h+'</table>';
+}
+
+/* ---------- controls ---------- */
+function setView(v){
+  view=v; $('tTime').classList.toggle('on',v==='time'); $('tSpec').classList.toggle('on',v==='spec');
+  document.body.classList.toggle('spec',v==='spec');
+}
+$('tTime').onclick=()=>setView('time'); $('tSpec').onclick=()=>setView('spec');
+$('evBtn').onclick=()=>{
+  el.evBox.hidden=!el.evBox.hidden; $('evBtn').classList.toggle('on',!el.evBox.hidden);
+  if(!el.evBox.hidden) buildLog(); setTimeout(fit,0);
+};
+$('bBump').onclick=()=>fireBump();
+$('bQuake').onclick=()=>fireQuake();
+$('bAuto').onclick=()=>{auto=!auto;$('bAuto').textContent='Auto: '+(auto?'on':'off');$('bAuto').classList.toggle('on',auto);if(auto)phEnd=0;};
+
+/* ---------- main loop ---------- */
+let t0=performance.now(), lastUi=0, cnt=0, cntT=t0, lastFrame=t0;
+function frame(now){
+  let target=Math.floor((now-t0)*FS/1000);
+  if(target-n>FS){t0=now-n*1000/FS-200;target=Math.floor((now-t0)*FS/1000);}
+  let m=0; while(n<target&&m<FS){step();m++;cnt++;}
+  lastFrame=m?now:lastFrame; lastFrameMs=now-lastFrame;
+  if(now-cntT>=1000){rateHz=cnt*1000/(now-cntT);cnt=0;cntT=now;}
+  if(now-lastUi>=100){lastUi=now;ui(n/FS);}
+  draw();
+  requestAnimationFrame(frame);
+}
+// pre-roll 1.5 s so filters settle before the first frame
+for(let i=0;i<300;i++) step();
+t0=performance.now()-n*1000/FS;
+ui(n/FS);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
