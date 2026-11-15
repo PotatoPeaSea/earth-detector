@@ -1,5 +1,4 @@
 #include "sensor.h"
-#include <esp_timer.h>
 #include "detector.h"
 #include "params.h"
 
@@ -8,14 +7,15 @@ static ADXL345 dev1(Wire1, ADXL_ADDR);
 SensorCtx g_sensors[NUM_SENSORS];
 volatile bool g_rawMode = false;
 
-static void IRAM_ATTR onInt(void* arg) {
+static void HAL_ISR_ATTR onInt(void* arg) {
   SensorCtx* s = (SensorCtx*)arg;
-  portENTER_CRITICAL_ISR(&s->mux);
-  s->isrTime = esp_timer_get_time();
-  portEXIT_CRITICAL_ISR(&s->mux);
+  {
+    CritIsrGuard g(s->mux);
+    s->isrTime = halNowUs();
+  }
   BaseType_t hp = pdFALSE;
   if (s->task) vTaskNotifyGiveFromISR(s->task, &hp);
-  if (hp) portYIELD_FROM_ISR();
+  HAL_YIELD_FROM_ISR(hp);
 }
 
 static inline int16_t toCounts(float g) {
@@ -147,9 +147,10 @@ static void processDecimated(SensorCtx& s, const float a[3], uint32_t rawIdx) {
     float mg = ft.rms * 1000.f;
     s.noiseMg = (s.noiseMg == 0) ? mg : s.noiseMg + 0.005f * (mg - s.noiseMg);
   }
-  portENTER_CRITICAL(&s.mux);
-  s.feat = ft;
-  portEXIT_CRITICAL(&s.mux);
+  {
+    CritGuard g(s.mux);
+    s.feat = ft;
+  }
 
   if (s.dataN == 0) {
     s.dataFirstIdx = s.decCount;
@@ -188,8 +189,16 @@ static void processRaw(SensorCtx& s, const RawSample& raw) {
 static bool hwStart(SensorCtx& s, bool selfTest) {
   s.wire->end();
   i2cBusRecover(s.sda, s.scl);
+#if HAL_RP2040
+  s.wire->setSDA(s.sda);
+  s.wire->setSCL(s.scl);
+  s.wire->setClock(I2C_HZ);
+  s.wire->begin();
+  s.wire->setTimeout(10);
+#else
   s.wire->begin(s.sda, s.scl, I2C_HZ);
   s.wire->setTimeOut(10);
+#endif
   if (!s.dev->probe()) {
     s.present = false;
     return false;
@@ -206,6 +215,11 @@ static bool hwStart(SensorCtx& s, bool selfTest) {
 static void sensorTask(void* arg) {
   SensorCtx& s = *(SensorCtx*)arg;
   uint32_t lastRetry = 0;
+#if HAL_RP2040
+  // RP2040 GPIO interrupts are handled by the core that attached them. Attaching from here puts the
+  // sensor's interrupt on the same core as its task, away from the display and USB on core 0.
+  halAttachRisingIsr(s.intPin, onInt, &s);
+#endif
   for (;;) {
     if (!s.present) {
       vTaskDelay(pdMS_TO_TICKS(100));
@@ -221,9 +235,11 @@ static void sensorTask(void* arg) {
     }
 
     uint32_t got = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(30));
-    portENTER_CRITICAL(&s.mux);
-    int64_t tIsr = s.isrTime;
-    portEXIT_CRITICAL(&s.mux);
+    int64_t tIsr;
+    {
+      CritGuard g(s.mux);
+      tIsr = s.isrTime;
+    }
 
     bool ovr = false;
     int n = s.dev->fifoEntries(&ovr);
@@ -278,6 +294,7 @@ void sensorsInit() {
       s.lp[k].designLowpass(LP_HZ, FS_DEC_NOMINAL);
     }
     s.ft.reset();
+    if (!SENSOR_FITTED[i]) continue;  // not installed: never started, no task, no interrupt
     pinMode(s.intPin, INPUT_PULLDOWN);
     bool ok = hwStart(s, true);
     logf("S%d: %s, DEVID first 0x%02X last 0x%02X, self-test %s (%d, %d, %d LSB)", i + 1,
@@ -295,27 +312,30 @@ void sensorsInit() {
   }
   for (int i = 0; i < NUM_SENSORS; i++) {
     SensorCtx& s = g_sensors[i];
+    if (!SENSOR_FITTED[i]) continue;
     char name[12];
     snprintf(name, sizeof(name), "sensor%d", i + 1);
-    xTaskCreatePinnedToCore(sensorTask, name, 6144, &s, 20, &s.task, 1);
-    attachInterruptArg(s.intPin, onInt, &s, RISING);
+    halTaskCreate(sensorTask, name, 6144, &s, PRIO_SENSOR, CORE_SENSOR[i], &s.task);
+#if !HAL_RP2040
+    halAttachRisingIsr(s.intPin, onInt, &s);
+#endif  // RP2040: the task attaches its own interrupt, see sensorTask
   }
 }
 
 bool sensorOk(int i) {
   SensorCtx& s = g_sensors[i];
   if (!s.present) return false;
-  portENTER_CRITICAL(&s.mux);
-  bool v = s.feat.valid;
-  portEXIT_CRITICAL(&s.mux);
-  return v;
+  CritGuard g(s.mux);
+  return s.feat.valid;
 }
 
 Features sensorFeatures(int i) {
   SensorCtx& s = g_sensors[i];
-  portENTER_CRITICAL(&s.mux);
-  Features f = s.feat;
-  portEXIT_CRITICAL(&s.mux);
+  Features f;
+  {
+    CritGuard g(s.mux);
+    f = s.feat;
+  }
   if (!s.present) f.valid = false;
   return f;
 }

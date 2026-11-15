@@ -1,19 +1,27 @@
 #include "detector.h"
-#include <esp_timer.h>
+#include "alerts.h"
+#include "hal.h"
 #include "params.h"
 #include "protocol.h"
 #include "sensor.h"
 
-static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
+static SpinMux s_mux;
 static volatile uint8_t s_state = ST_INIT;
 static volatile uint8_t s_level = 0;
 static volatile bool s_silenced = false;
 
+static DetectorInfo s_info = {ST_INIT, 0, 0, 0, 0, false, false, 0, 0};
+static uint32_t s_bumpCount = 0;
+static float s_bumpPeak = 0;
+DetectorInfo detectorInfo() {
+  CritGuard g(s_mux);
+  return s_info;
+}
+
 uint8_t detectorState() { return s_state; }
 DetectorView detectorView() {
-  portENTER_CRITICAL(&s_mux);
+  CritGuard g(s_mux);
   DetectorView v = {s_state, s_level, s_silenced};
-  portEXIT_CRITICAL(&s_mux);
   return v;
 }
 void detectorSilence() { s_silenced = true; }
@@ -83,22 +91,25 @@ static void detectorStep(float dt, uint8_t& passOut, uint8_t& evalOut, float& du
                          Features& B, bool& haveBase) {
   bool ok0 = sensorOk(0), ok1 = sensorOk(1);
   bool pres0 = g_sensors[0].present, pres1 = g_sensors[1].present;
-  int prim = pres0 ? 0 : (pres1 ? 1 : -1);
   haveBase = false;
   passOut = evalOut = 0;
   durOut = 0;
-  if (prim < 0) {
+  if (!pres0 && !pres1) {
     s_state = ST_FAULT;
+    return;
+  }
+  // Primary = the top sensor (S1) while it delivers valid features, otherwise the base sensor.
+  // A sensor that is present but re-initializing or warming up is not valid for ~1 s; waiting for
+  // it froze the alarm in place, so the other valid sensor takes over meanwhile.
+  int prim = ok0 ? 0 : (ok1 ? 1 : -1);
+  if (prim < 0) {
+    if (s_state != ST_ALARM) s_state = ST_INIT;  // warming up / re-zeroing, nothing to judge by
     return;
   }
   P = sensorFeatures(prim);
   if (prim == 0 && ok1) {
     B = sensorFeatures(1);
     haveBase = B.valid;
-  }
-  if (!(prim == 0 ? ok0 : ok1)) {
-    if (s_state != ST_ALARM) s_state = ST_INIT;  // warming up / re-zeroing
-    return;
   }
 
   static float candDur = 0, quiet = 0, alarmT = 0;
@@ -146,10 +157,10 @@ static void detectorStep(float dt, uint8_t& passOut, uint8_t& evalOut, float& du
     case ST_IDLE:
       s_state = ST_IDLE;
       s_level = 0;
-      if (P.rms >= on) {
+      if (P.rms >= on && !alertsSelfNoise()) {
         ev = EventAcc();
         ev.id = ++s_eventCount;
-        ev.tStart = esp_timer_get_time();
+        ev.tStart = halNowUs();
         candDur = 0;
         s_state = ST_CANDIDATE;
       }
@@ -165,6 +176,8 @@ static void detectorStep(float dt, uint8_t& passOut, uint8_t& evalOut, float& du
         if (candDur >= g_params[P_CONFIRM_S]) ev.pass |= 1 << CK_DURATION;
         ev.eval |= 1 << CK_DURATION;
         emitEvent(0);
+        s_bumpPeak = ev.peak;
+        s_bumpCount++;
         s_state = ST_IDLE;
       } else if (pass == eval) {
         s_state = ST_ALARM;
@@ -197,7 +210,13 @@ static void detectorStep(float dt, uint8_t& passOut, uint8_t& evalOut, float& du
         if (l > ev.level) ev.level = l;
         s_level = ev.level;
       }
-      quiet = (P.rms < off) ? quiet + dt : 0;
+      // "Shaking has stopped" is judged by the base sensor, i.e. the table itself, when it is
+      // valid. The top sensor is the one riding on the flexible harness and glitches after a hard
+      // shake, which used to keep resetting this timer and held the alarm on for 10-25 s.
+      {
+        float ref = haveBase ? B.rms : P.rms;
+        quiet = (ref < off) ? quiet + dt : 0;
+      }
       if (alarmT >= g_params[P_LATCH_S] && quiet >= g_params[P_QUIET_S]) {
         ev.duration = candDur - quiet;
         emitEvent(1);
@@ -221,6 +240,14 @@ void detectorTask(void*) {
     bool haveBase;
     detectorStep(0.01f, pass, eval, dur, P, B, haveBase);
     tick++;
+    // Saving settings to flash stalls both RP2040 cores for tens of ms: only do it while quiet.
+    paramsPoll(s_state != ST_CANDIDATE && s_state != ST_ALARM);
+    {
+      uint8_t lvl = s_state == ST_ALARM ? s_level : levelFor(P.rms);
+      bool o0 = sensorOk(0), o1 = sensorOk(1);
+      CritGuard g(s_mux);
+      s_info = {s_state, lvl, P.rms, P.peak, P.freq, o0, o1, s_bumpCount, s_bumpPeak};
+    }
 
     if (tick % 10 == 0) {  // STATUS at 10 Hz
       PayloadWriter w;
@@ -247,8 +274,8 @@ void detectorTask(void*) {
       PayloadWriter w;
       w.u32(millis());
       w.u32(txDropped());
-      w.u32(ESP.getFreeHeap());
-      uint32_t mv = analogReadMilliVolts(PIN_VBAT) * 2;
+      w.u32(halFreeHeap());
+      uint32_t mv = halBatteryMv();
       w.u16(mv < 500 ? 0 : (uint16_t)mv);
       sensorsWriteHealth(w);
       sendFrame(F_HEALTH, w);

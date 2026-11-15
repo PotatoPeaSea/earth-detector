@@ -1,11 +1,11 @@
 #pragma once
 #include <Arduino.h>
-#include <esp_timer.h>
 #include "adxl345.h"
 #include "dsp.h"
+#include "hal.h"
 #include "protocol.h"
 
-// Maps each sensor's sample count to ESP32 crystal time and measures the sensor's true output rate.
+// Maps each sensor's sample count to host-MCU crystal time and measures the sensor's true output rate.
 struct RateEstimator {
   static constexpr int N = 64;  // one point per second, 64 s baseline
   uint32_t n[N];
@@ -39,7 +39,7 @@ struct RateEstimator {
     }
   }
   int64_t timeOf(uint32_t idx) const {
-    if (!hasAnchor) return esp_timer_get_time();
+    if (!hasAnchor) return halNowUs();
     return anchorT + (int64_t)((double)(int32_t)(idx - anchorN) * 1e6 / rate);
   }
 };
@@ -50,7 +50,7 @@ struct SensorCtx {
   TwoWire* wire;
   ADXL345* dev;
   TaskHandle_t task = nullptr;
-  portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+  SpinMux mux;
   volatile int64_t isrTime = 0;
 
   // health

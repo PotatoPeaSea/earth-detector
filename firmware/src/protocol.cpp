@@ -141,7 +141,8 @@ static void handleCommand(const uint8_t* f, size_t n) {
       logf("Raw 800 Hz stream %s", g_rawMode ? "on" : "off");
       break;
     case C_TEST_ALARM:
-      alertsTest(2000);
+      if (pl >= 1 && p[0]) alertsTestMelody(p[0]);  // payload 1/2: play the chime / jingle only
+      else alertsTest(2000);
       break;
     case C_SILENCE:
       detectorSilence();
@@ -168,6 +169,46 @@ static void handleCommand(const uint8_t* f, size_t n) {
   }
 }
 
+#if HAL_RP2040
+// The dashboard and monitor.py drop DTR right after opening the port (to stop the ESP32 resetting).
+// arduino-pico's USB CDC stays silent while DTR is low unless ignoreFlowControl is set (done in
+// startup()), and then still truncates any write bigger than its 256-byte FIFO. So write in
+// chunks that fit, wait briefly for the host to drain, and drop whole frames when nobody is
+// reading (battery operation) instead of blocking the comms task.
+//
+// A full FIFO with nobody reading also has to be re-kicked: TinyUSB only starts an IN transfer on
+// a flush, so after the host opens the port (or reopens it) nothing would ever drain the stale
+// bytes. Flushing on every skipped frame is cheap and non-blocking.
+static bool s_usbStalled = false;
+static void usbWrite(const uint8_t* p, size_t n) {
+  if (s_usbStalled && Serial.availableForWrite() < 64) {
+    Serial.flush();
+    return;
+  }
+  uint32_t t0 = millis();
+  while (n) {
+    int avail = Serial.availableForWrite();
+    if (avail > 0) {
+      size_t k = n < (size_t)avail ? n : (size_t)avail;
+      Serial.write(p, k);
+      p += k;
+      n -= k;
+      s_usbStalled = false;
+      t0 = millis();
+    } else if (millis() - t0 > 20) {
+      s_usbStalled = true;
+      Serial.flush();
+      return;
+    } else {
+      vTaskDelay(1);
+    }
+  }
+}
+#define SERIAL_WRITE(p, n) usbWrite((p), (n))
+#else
+#define SERIAL_WRITE(p, n) Serial.write((p), (n))
+#endif
+
 static void writeFrame(const TxFrame& f) {
   static uint8_t raw[1 + 2 + 280 + 2], enc[300];
   size_t plen = f.len - 1;
@@ -181,7 +222,7 @@ static void writeFrame(const TxFrame& f) {
   raw[plen + 4] = crc >> 8;
   size_t n = cobsEncode(raw, plen + 5, enc);
   enc[n++] = 0x00;
-  Serial.write(enc, n);
+  SERIAL_WRITE(enc, n);
 }
 
 void commsTask(void*) {

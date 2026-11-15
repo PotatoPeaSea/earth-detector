@@ -19,6 +19,18 @@ struct DetectorView {
   bool silenced;
 };
 
+// Live numbers for on-device UIs (the round display); refreshed every detector tick (10 ms).
+struct DetectorInfo {
+  uint8_t state;     // DetState
+  uint8_t level;     // magnitude level 0-5 (the alarm's level while in ALARM, else from current RMS)
+  float rms, peak;   // g, primary sensor, 0.5 s window
+  float freq;        // Hz, 0 = none
+  bool ok0, ok1;     // sensors delivering valid data
+  uint32_t bumpCount;  // increments each time a disturbance ends rejected (a bump, not a quake)
+  float bumpPeak;      // g, peak of the latest bump
+};
+DetectorInfo detectorInfo();
+
 uint8_t detectorState();
 DetectorView detectorView();
 void detectorSilence();

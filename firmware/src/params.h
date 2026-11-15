@@ -25,6 +25,9 @@ extern float g_params[P_COUNT];
 void paramsLoad();
 void paramsSet(uint8_t id, float v);
 void paramsReset();
+// Call periodically from one task. RP2040 keeps settings in RAM and writes the flash page here once
+// changes have settled and `quiet` is true; ESP32 (NVS) saves immediately, so this does nothing.
+void paramsPoll(bool quiet);
 
 struct Cal {
   float off[3];   // g

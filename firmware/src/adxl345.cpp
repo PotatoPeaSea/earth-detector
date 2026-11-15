@@ -119,6 +119,36 @@ bool ADXL345::readSample(RawSample& s) {
   return true;
 }
 
+#if HAL_RP2040
+// RP2040 GPIOs have no open-drain mode: emulate it by driving low or releasing to an input with the
+// pull-up (the modules' own 4.7 k pull-ups do the real work).
+static inline void odLow(int pin) {
+  digitalWrite(pin, LOW);
+  pinMode(pin, OUTPUT);
+}
+static inline void odRelease(int pin) { pinMode(pin, INPUT_PULLUP); }
+
+void i2cBusRecover(int sda, int scl) {
+  odRelease(sda);
+  odRelease(scl);
+  delayMicroseconds(10);
+  for (int i = 0; i < 9 && digitalRead(sda) == LOW; i++) {
+    odLow(scl);
+    delayMicroseconds(10);
+    odRelease(scl);
+    delayMicroseconds(10);
+  }
+  // STOP condition: SDA rises while SCL is high
+  odLow(sda);
+  delayMicroseconds(10);
+  odRelease(scl);
+  delayMicroseconds(10);
+  odRelease(sda);
+  delayMicroseconds(10);
+  pinMode(sda, INPUT);
+  pinMode(scl, INPUT);
+}
+#else
 void i2cBusRecover(int sda, int scl) {
   pinMode(sda, INPUT_PULLUP);
   pinMode(scl, OUTPUT_OPEN_DRAIN);
@@ -141,3 +171,4 @@ void i2cBusRecover(int sda, int scl) {
   pinMode(sda, INPUT);
   pinMode(scl, INPUT);
 }
+#endif

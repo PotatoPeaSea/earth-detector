@@ -45,7 +45,11 @@ struct Biquad {
   }
 };
 
-// Median of the last three samples: removes single-sample glitches.
+// Removes single-sample glitches: the median of the last three samples replaces a sample only when
+// it is a gross outlier (more than MEDIAN_GLITCH_G from that median). A plain median of 3 is
+// nonlinear: on a strong tone near the 400 Hz Nyquist (the buzzer, aliased) it rectifies the tone
+// into false low-frequency "shaking", which tripped and then held the alarm. Real I2C glitches are
+// many g; real vibration and buzzer pickup stay well below that and pass through untouched.
 struct Median3 {
   float a = 0, b = 0;
   bool primed = false;
@@ -57,7 +61,7 @@ struct Median3 {
     float m = fmaxf(fminf(a, b), fminf(fmaxf(a, b), x));
     a = b;
     b = x;
-    return m;
+    return fabsf(x - m) > MEDIAN_GLITCH_G ? m : x;
   }
 };
 
